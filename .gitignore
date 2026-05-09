@@ -1,0 +1,114 @@
+# ========================================
+# Unity Game
+# ========================================
+unity-game/[Ll]ibrary/
+unity-game/[Tt]emp/
+unity-game/[Oo]bj/
+unity-game/[Bb]uild/
+unity-game/[Bb]uilds/
+unity-game/[Ll]ogs/
+unity-game/[Uu]ser[Ss]ettings/
+unity-game/Recordings/
+unity-game/[Aa]ssets/[Ss]treamingAssets/
+
+# Unity generated project files (regenerated on open)
+unity-game/*.sln
+unity-game/*.csproj
+unity-game/*.unityproj
+unity-game/*.booproj
+unity-game/*.pidb
+unity-game/*.suo
+unity-game/*.user
+unity-game/*.userprefs
+unity-game/*.userosscache
+
+# Unity IDE / editor
+unity-game/.vs/
+unity-game/.vscode/
+unity-game/.idea/
+unity-game/*.sln.DotSettings.user
+unity-game/ExportedObj/
+unity-game/*.apk
+unity-game/*.aab
+unity-game/*.unitypackage
+unity-game/*.crashlytics
+unity-game/*.app
+
+# Unity Cache
+unity-game/[Aa]ssets/*.cache
+unity-game/[Cc]rashlytics/
+
+# Unity Autosave
+unity-game/[Aa]utosave/
+
+# Unity Asset Store Tools
+unity-game/[Aa]ssets/AssetStoreTools*
+
+# ========================================
+# Java / Spring Boot / Maven
+# ========================================
+server/target/
+server/.mvn/wrapper/maven-wrapper.jar
+server/build/
+!server/src/main/**/build/
+!server/src/test/**/build/
+
+# IDE (Java)
+server/.apt_generated
+server/.classpath
+server/.factorypath
+server/.project
+server/.settings/
+server/.springBeans
+server/.sts4-cache
+server/.idea/
+server/*.iws
+server/*.iml
+server/*.ipr
+server/.nb-gradle/
+server/nbproject/
+
+# Certificates (generated at runtime)
+server/src/main/resources/*.p12
+server/src/main/resources/*.jks
+server/src/main/resources/*.pem
+
+# ========================================
+# General
+# ========================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.Trashes
+.directory
+*.bak
+*.tmp
+
+# Node / web (mobile-web)
+node_modules/
+.npm
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+dist/
+.cache/
+
+# ========================================
+# IDE & Editors
+# ========================================
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# ========================================
+# Project-specific
+# ========================================
+.agents/
+.claude/
+
+# Generated docs
+docs/*.pdf
