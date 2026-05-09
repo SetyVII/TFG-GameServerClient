@@ -109,6 +109,9 @@ dist/
 # ========================================
 .agents/
 .claude/
+skills-lock.json
+CLAUDE.md
+CLAUDE.local.md
 
 # Generated docs
 docs/*.pdf
