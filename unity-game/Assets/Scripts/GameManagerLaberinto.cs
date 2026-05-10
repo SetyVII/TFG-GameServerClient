@@ -214,6 +214,7 @@ public class GameManagerLaberinto : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.Space) && puedeSaltar) AccionBotonA();
             if (Input.GetKeyDown(KeyCode.E)) AccionBotonB();
+            if (Input.GetKeyDown(KeyCode.F)) AccionSoplar();
         }
         else
         {
@@ -355,6 +356,14 @@ public class GameManagerLaberinto : MonoBehaviour
         if (!juegoIniciado) return;
         Interruptor[] todos = UnityEngine.Object.FindObjectsByType<Interruptor>(FindObjectsSortMode.None);
         foreach (Interruptor inter in todos) inter.IntentarActivar();
+    }
+
+    public void AccionSoplar()
+    {
+        if (!juegoIniciado) return;
+        Debug.Log("[GameManager] AccionSoplar() - buscando Soplables...");
+        Soplable[] todos = UnityEngine.Object.FindObjectsByType<Soplable>(FindObjectsSortMode.None);
+        foreach (Soplable s in todos) s.Activar();
     }
 
     public void VolverAlMenuPrincipal() { Debug.Log("[GameManager] VolverAlMenuPrincipal - recargando escena..."); SceneManager.LoadScene(SceneManager.GetActiveScene().name); }

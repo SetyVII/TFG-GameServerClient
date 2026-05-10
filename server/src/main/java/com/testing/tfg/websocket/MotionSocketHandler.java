@@ -116,6 +116,16 @@ public class MotionSocketHandler extends TextWebSocketHandler {
                 log.info("java->unity forwarded action={}", action);
                 return;
             }
+
+            if ("blow".equalsIgnoreCase(type)) {
+                boolean active = "true".equalsIgnoreCase(getStringField(payload, "active", "false"));
+                float volume = getFloatField(payload, "volume", 0f);
+                String action = active ? "soplar" : "none";
+                unityTcpForwarder.send(lastAlpha, lastBeta, lastGamma, action);
+                log.info("java->unity forwarded blow active={} volume={}", active, volume);
+                return;
+            }
+
             log.debug("java->unity ignored message type={}", type);
         } catch (Exception ignored) {
             // Non-JSON payloads are still valid for ws broadcast; only Unity forwarding requires JSON.

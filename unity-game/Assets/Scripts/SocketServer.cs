@@ -139,6 +139,8 @@ public class SocketServer : MonoBehaviour
                     gameManager.AccionBotonA();
                 else if (accion == "validar")
                     gameManager.AccionBotonB();
+                else if (accion == "soplar")
+                    gameManager.AccionSoplar();
             });
         }
     }

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Vibración</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a2e; color: #eee;
+            font-family: Arial, sans-serif;
+            padding: 1rem;
+        }
+        h1 { font-size: 1.2rem; margin-bottom: 0.5rem; color: #e94560; }
+        #info {
+            background: #16213e; border-radius: 8px;
+            padding: 0.8rem; margin-bottom: 1rem;
+            font-size: 0.75rem; line-height: 1.6;
+        }
+        #info span { color: #22c55e; font-weight: 700; }
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.6rem;
+        }
+        button {
+            padding: 1rem 0.5rem;
+            border: 0; border-radius: 10px;
+            font-size: 0.85rem; font-weight: 700;
+            color: #fff; cursor: pointer;
+            touch-action: manipulation;
+            min-height: 60px;
+        }
+        button:active { opacity: 0.7; }
+        .v1 { background: #9333ea; }
+        .v2 { background: #ea580c; }
+        .v3 { background: #2563eb; }
+        .v4 { background: #dc2626; }
+        .v5 { background: #16a34a; }
+        .v6 { background: #ca8a04; }
+        #log {
+            margin-top: 1rem; padding: 0.6rem;
+            background: #0b1320; border-radius: 8px;
+            font-size: 0.7rem; min-height: 100px;
+            white-space: pre-line; color: #aaa;
+        }
+        .log-ok { color: #22c55e; }
+        .log-warn { color: #eab308; }
+        .log-err { color: #ef4444; }
+    </style>
+</head>
+<body>
+
+<h1>Test de Vibración</h1>
+
+<div id="info">
+    <span id="platform">Detectando...</span><br>
+    <span id="vib-support">...</span><br>
+    <span id="haptic-support">...</span>
+</div>
+
+<div class="btn-grid">
+    <button class="v1" id="btn-short">vibrate(200)<br><small>Pulso corto</small></button>
+    <button class="v2" id="btn-long">vibrate(1000)<br><small>1 segundo</small></button>
+    <button class="v3" id="btn-pattern">vibrate([100,50,100])<br><small>Patrón doble</small></button>
+    <button class="v4" id="btn-sos">vibrate([100,30,100,30,100,200,200,30,200,30,200,200,100,30,100,30,100])<br><small>SOS</small></button>
+    <button class="v5" id="btn-continuous">Continuo 5s<br><small>vibrate(5000)</small></button>
+    <button class="v6" id="btn-stop">STOP<br><small>vibrate(0)</small></button>
+</div>
+
+<div id="log"></div>
+
+<script>
+    const logEl = document.getElementById("log");
+
+    function log(msg, cls) {
+        logEl.innerHTML += `<span class="${cls || ''}">[${new Date().toLocaleTimeString()}] ${msg}</span>\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // --- Detección ---
+    const platform = (navigator.platform || "").toLowerCase();
+    let platName = "other";
+    if (/iphone|ipod|ipad/.test(platform)) platName = "iOS";
+    else if (/android/.test(platform)) platName = "Android";
+    else if (/windows/.test(platform)) platName = "Windows";
+    else if (/mac/.test(platform)) platName = "Mac";
+    else if (/linux/.test(platform)) platName = "Linux";
+
+    document.getElementById("platform").textContent = `Plataforma: ${platName} (${navigator.platform || "desconocido"})`;
+
+    const hasVibrate = "vibrate" in navigator;
+    const hasHaptic = !!navigator.haptic;
+    document.getElementById("vib-support").textContent = `navigator.vibrate: ${hasVibrate ? "SÍ" : "NO"}`;
+    document.getElementById("haptic-support").textContent = `navigator.haptic: ${hasHaptic ? "SÍ" : "NO"}`;
+
+    log(`Plataforma: ${platName} | vibrate: ${hasVibrate} | haptic: ${hasHaptic}`);
+
+    // --- Función de vibración ---
+    function doVibrate(pattern, label) {
+        log(`▶ ${label}`, "log-ok");
+        if (hasVibrate) {
+            try {
+                const result = navigator.vibrate(pattern);
+                if (result === true) {
+                    log(`  navigator.vibrate(${JSON.stringify(pattern)}) → true`, "log-ok");
+                } else {
+                    log(`  navigator.vibrate(${JSON.stringify(pattern)}) → false (posiblemente bloqueado por falta de gesto de usuario)`, "log-warn");
+                }
+            } catch (e) {
+                log(`  Error: ${e.message}`, "log-err");
+            }
+        } else if (hasHaptic) {
+            try {
+                navigator.haptic.selection();
+                navigator.haptic.impact("medium");
+                navigator.haptic.notification("success");
+                log(`  navigator.haptic: selection + impact(medium) + notification(success)`, "log-ok");
+            } catch (e) {
+                log(`  Error haptic: ${e.message}`, "log-err");
+            }
+        } else {
+            log(`  Sin API de vibración disponible`, "log-err");
+        }
+    }
+
+    document.getElementById("btn-short").addEventListener("click", () => doVibrate(200, "vibrate(200)"));
+    document.getElementById("btn-long").addEventListener("click", () => doVibrate(1000, "vibrate(1000)"));
+    document.getElementById("btn-pattern").addEventListener("click", () => doVibrate([100, 50, 100], "vibrate([100,50,100])"));
+    document.getElementById("btn-sos").addEventListener("click", () => doVibrate([100,30,100,30,100,200,200,30,200,30,200,200,100,30,100,30,100], "SOS"));
+    document.getElementById("btn-continuous").addEventListener("click", () => doVibrate(5000, "vibrate(5000)"));
+    document.getElementById("btn-stop").addEventListener("click", () => {
+        if (hasVibrate) navigator.vibrate(0);
+        log("■ STOP enviado", "log-warn");
+    });
+</script>
+</body>
+</html>
