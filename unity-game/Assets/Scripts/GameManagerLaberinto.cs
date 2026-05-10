@@ -7,7 +7,7 @@ using TMPro;
 
 public class GameManagerLaberinto : MonoBehaviour
 {
-    [Header("Paneles de Navegación")]
+    [Header("Paneles de Navegaciï¿½n")]
     public GameObject panelMenu;
     public GameObject panelInstrucciones;
     public GameObject panelEleccionMando;
@@ -21,37 +21,55 @@ public class GameManagerLaberinto : MonoBehaviour
     public TextMeshProUGUI textoMonedasHUD;  // Texto de monedas durante el juego
 
     [Header("Referencias de Interfaz (Final)")]
-    public TextMeshProUGUI textoFinalVidas;  // Texto de vidas en panel victoria/derrota
-    public TextMeshProUGUI textoFinalMonedas;// Texto de monedas en panel victoria/derrota
+    public TextMeshProUGUI textoFinalVidas;
+    public TextMeshProUGUI textoFinalMonedas;
+    public TextMeshProUGUI textoFinalTitulo;
+    public Color colorVictoria = new Color(0.2f, 0.8f, 0.2f, 1f);
+    public Color colorDerrota = new Color(0.8f, 0.2f, 0.2f, 1f);
 
     [Header("Referencias de Juego")]
     public Rigidbody2D rbBola;
     public TextMeshProUGUI textDisplayIP;
 
-    [Header("Configuración de Control")]
+    [Header("Configuraciï¿½n de Control")]
     public float fuerzaMando = 20f;
     public float fuerzaTeclado = 25f;
+    public float multiplicadorMovil = 1.0f;
     public float fuerzaSalto = 12f;
     public float tiempoSalto = 0.6f;
     public float cooldownSalto = 1.0f;
+    
+    [Header("Mapeo giroscopio mï¿½vil")]
+    public float maxInclinacionGrados = 35f;
+    public float zonaMuertaMovil = 0.08f;
+    public float suavizadoMovil = 10f;
+    public bool invertirEjeXMovil = false;
+    public bool invertirEjeYMovil = true;
+    public bool habilitarSaltoPorInclinacion = true;
+    [Range(0.1f, 1f)] public float umbralSaltoInclinacion = 0.25f;
+    [Range(0.05f, 0.9f)] public float umbralRearmeSaltoInclinacion = 0.12f;
 
-    [Header("Configuración de Partida")]
+    [Header("Configuraciï¿½n de Partida")]
     public int vidasTotales = 3;
     private int vidasActuales;
     private int monedasRecogidas = 0;
 
     [HideInInspector] public float sensor_Alpha, sensor_Beta, sensor_Gamma;
     [HideInInspector] public bool estaSaltando = false;
+    public bool EsperandoConexionMovil => esperandoConexionMovil;
     private bool puedeSaltar = true;
 
     private bool juegoIniciado = false;
     private bool usaMovil = false;
+    private bool esperandoConexionMovil = false;
     private Vector3 escalaOriginal;
     private Vector3 posicionCheckpoint;
+    private Vector2 entradaMovilSuavizada = Vector2.zero;
+    private bool gestoSaltoMovilActivo = false;
 
     void Start()
     {
-        // Inicializar valores
+        Debug.Log("[GameManager] Start() - inicializando juego");
         vidasActuales = vidasTotales;
         monedasRecogidas = 0;
         ActualizarHUD();
@@ -102,7 +120,7 @@ public class GameManagerLaberinto : MonoBehaviour
             else
             {
                 // Reset a checkpoint
-                rbBola.velocity = Vector2.zero;
+                rbBola.linearVelocity = Vector2.zero;
                 rbBola.angularVelocity = 0f;
                 rbBola.transform.position = posicionCheckpoint;
             }
@@ -119,35 +137,59 @@ public class GameManagerLaberinto : MonoBehaviour
     private void TerminarJuego(bool victoria)
     {
         juegoIniciado = false;
-        rbBola.velocity = Vector2.zero;
+        rbBola.linearVelocity = Vector2.zero;
         rbBola.simulated = false;
 
-        // Escribir resultados en los textos finales
         if (textoFinalVidas != null) textoFinalVidas.text = "Vidas: " + vidasActuales;
         if (textoFinalMonedas != null) textoFinalMonedas.text = "Monedas: " + monedasRecogidas;
 
         DesactivarTodo();
 
-        if (victoria)
-            panelVictoria.SetActive(true);
-        else
-            panelDerrota.SetActive(true);
+        GameObject panelFinal = victoria ? panelVictoria : panelDerrota;
+        if (panelFinal == null) panelFinal = panelVictoria;
+
+        if (textoFinalTitulo != null)
+        {
+            textoFinalTitulo.text = victoria ? "Victoria!" : "Has Perdido";
+            textoFinalTitulo.color = victoria ? colorVictoria : colorDerrota;
+        }
+
+        panelFinal.SetActive(true);
     }
 
-    // --- NAVEGACIÓN ---
+    // --- NAVEGACIï¿½N ---
 
-    public void MostrarMenuPrincipal() { DesactivarTodo(); panelMenu.SetActive(true); }
+    public void MostrarMenuPrincipal() { esperandoConexionMovil = false; DesactivarTodo(); panelMenu.SetActive(true); }
     public void AbrirInstrucciones() { panelInstrucciones.SetActive(true); }
     public void CerrarInstrucciones() { panelInstrucciones.SetActive(false); }
     public void IrAEleccionMando() { DesactivarTodo(); panelEleccionMando.SetActive(true); }
-    public void ElegirTeclado() { usaMovil = false; EmpezarJuego(); }
-    public void ElegirMovil() { usaMovil = true; DesactivarTodo(); panelIP.SetActive(true); }
+    public void ElegirTeclado() { esperandoConexionMovil = false; usaMovil = false; EmpezarJuego(); }
+    public void ElegirMovil()
+    {
+        esperandoConexionMovil = true;
+        usaMovil = true;
+        DesactivarTodo();
+        panelIP.SetActive(true);
+
+        SocketServer socket = GetComponent<SocketServer>();
+        bool yaConectado = socket != null && socket.IsClientConnected;
+        Debug.Log($"[GameManager] ElegirMovil() - IsClientConnected={yaConectado}");
+
+        if (yaConectado)
+        {
+            Debug.Log("[GameManager] Cliente TCP ya conectado, iniciando juego directamente.");
+            EmpezarJuego();
+        }
+    }
 
     public void EmpezarJuego()
     {
+        esperandoConexionMovil = false;
         DesactivarTodo();
         panelJuego.SetActive(true);
         rbBola.simulated = true;
+        entradaMovilSuavizada = Vector2.zero;
+        gestoSaltoMovilActivo = false;
         juegoIniciado = true;
     }
 
@@ -173,34 +215,108 @@ public class GameManagerLaberinto : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.Space) && puedeSaltar) AccionBotonA();
             if (Input.GetKeyDown(KeyCode.E)) AccionBotonB();
         }
+        else
+        {
+            ProcesarSaltoPorInclinacion();
+        }
     }
 
     void FixedUpdate()
     {
         if (!juegoIniciado) return;
 
+        Vector2 entradaMovimiento;
+        float fuerzaAplicada;
+
         if (usaMovil)
         {
-            Vector2 fuerzaMovil = new Vector2(sensor_Gamma, -sensor_Beta);
-            rbBola.AddForce(fuerzaMovil * fuerzaMando);
+            Vector2 entradaMovil = ObtenerEntradaMovil();
+            float lerpFactor = 1f - Mathf.Exp(-suavizadoMovil * Time.fixedDeltaTime);
+            entradaMovilSuavizada = Vector2.Lerp(entradaMovilSuavizada, entradaMovil, lerpFactor);
+            entradaMovimiento = entradaMovilSuavizada;
+            fuerzaAplicada = fuerzaTeclado * multiplicadorMovil;
         }
         else
         {
             float moveX = Input.GetAxis("Horizontal");
             float moveY = Input.GetAxis("Vertical");
-            rbBola.AddForce(new Vector2(moveX, moveY) * fuerzaTeclado);
+            entradaMovimiento = new Vector2(moveX, moveY);
+            fuerzaAplicada = fuerzaTeclado;
         }
 
-        if (rbBola.velocity.magnitude > 25f)
+        rbBola.AddForce(entradaMovimiento * fuerzaAplicada, ForceMode2D.Force);
+
+        if (rbBola.linearVelocity.magnitude > 25f)
         {
-            rbBola.velocity = rbBola.velocity.normalized * 25f;
+            rbBola.linearVelocity = rbBola.linearVelocity.normalized * 25f;
+        }
+    }
+
+    private Vector2 ObtenerEntradaMovil()
+    {
+        Vector2 entrada = ObtenerEntradaMovilSinZonaMuerta();
+        float x = entrada.x;
+        float y = entrada.y;
+
+        if (Mathf.Abs(x) < zonaMuertaMovil) x = 0f;
+        if (Mathf.Abs(y) < zonaMuertaMovil) y = 0f;
+
+        return new Vector2(x, y);
+    }
+
+    private Vector2 ObtenerEntradaMovilSinZonaMuerta()
+    {
+        float x;
+        float y;
+
+        // Soporta dos formatos desde backend:
+        // 1) grados crudos (beta/gamma, ej: 8.9)
+        // 2) tilt normalizado [-1..1]
+        bool yaNormalizado = Mathf.Abs(sensor_Gamma) <= 1.2f && Mathf.Abs(sensor_Beta) <= 1.2f;
+        if (yaNormalizado)
+        {
+            x = Mathf.Clamp(sensor_Gamma, -1f, 1f);
+            y = Mathf.Clamp(sensor_Beta, -1f, 1f);
+        }
+        else
+        {
+            float gradosMax = Mathf.Max(1f, maxInclinacionGrados);
+            x = Mathf.Clamp(sensor_Gamma / gradosMax, -1f, 1f);
+            y = Mathf.Clamp(sensor_Beta / gradosMax, -1f, 1f);
+        }
+
+        if (invertirEjeXMovil) x = -x;
+        if (invertirEjeYMovil) y = -y;
+
+        return new Vector2(x, y);
+    }
+
+    private void ProcesarSaltoPorInclinacion()
+    {
+        if (!habilitarSaltoPorInclinacion) return;
+
+        Vector2 entradaMovilRaw = ObtenerEntradaMovilSinZonaMuerta();
+        float inclinacionVertical = entradaMovilRaw.y;
+        float umbralDisparo = umbralSaltoInclinacion;
+        float umbralRearme = Mathf.Min(umbralRearmeSaltoInclinacion, umbralDisparo - 0.01f);
+
+        if (!gestoSaltoMovilActivo && inclinacionVertical >= umbralDisparo)
+        {
+            gestoSaltoMovilActivo = true;
+            AccionBotonA();
+            return;
+        }
+
+        if (gestoSaltoMovilActivo && inclinacionVertical <= umbralRearme)
+        {
+            gestoSaltoMovilActivo = false;
         }
     }
 
     public void AccionBotonA()
     {
         if (!juegoIniciado || !puedeSaltar) return;
-        rbBola.velocity = new Vector2(rbBola.velocity.x, fuerzaSalto);
+        rbBola.linearVelocity = new Vector2(rbBola.linearVelocity.x, fuerzaSalto);
         StartCoroutine(RutinaSaltoYCooldown());
     }
 
@@ -240,7 +356,7 @@ public class GameManagerLaberinto : MonoBehaviour
         foreach (Interruptor inter in todos) inter.IntentarActivar();
     }
 
-    public void VolverAlMenuPrincipal() { SceneManager.LoadScene(SceneManager.GetActiveScene().name); }
+    public void VolverAlMenuPrincipal() { Debug.Log("[GameManager] VolverAlMenuPrincipal - recargando escena..."); SceneManager.LoadScene(SceneManager.GetActiveScene().name); }
 
     public void SalirDelJuego()
     {

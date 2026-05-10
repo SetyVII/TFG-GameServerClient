@@ -1,5 +1,6 @@
 using System;
-using System.Diagnostics;
+using System.Globalization;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -12,19 +13,25 @@ public class SocketServer : MonoBehaviour
     private TcpListener server;
     private Thread listenThread;
     private GameManagerLaberinto gameManager;
+    private UnityMainThreadDispatcher mainThreadDispatcher;
+    private volatile bool keepListening = true;
+    private volatile bool hasActiveClient = false;
+
+    public bool IsClientConnected => hasActiveClient;
 
     void Start()
     {
-        // Buscamos el componente GameManagerLaberinto en este mismo objeto
         gameManager = GetComponent<GameManagerLaberinto>();
+        mainThreadDispatcher = UnityMainThreadDispatcher.Instance();
 
-        // Mostramos la IP en el Panel IP si el texto está asignado
         if (gameManager.textDisplayIP != null)
             gameManager.textDisplayIP.text = "IP: " + GetLocalIPAddress();
 
+        keepListening = true;
         listenThread = new Thread(ListenForClients);
         listenThread.IsBackground = true;
         listenThread.Start();
+        Debug.Log($"[Socket] Listener iniciado en puerto {port}. Esperando cliente...");
     }
 
     private void ListenForClients()
@@ -33,70 +40,106 @@ public class SocketServer : MonoBehaviour
         {
             server = new TcpListener(IPAddress.Any, port);
             server.Start();
-            UnityEngine.Debug.Log("Servidor iniciado en puerto " + port);
 
-            while (true)
+            while (keepListening)
             {
-                using (TcpClient client = server.AcceptTcpClient())
+                TcpClient client;
+                try
                 {
-                    // Al conectar, forzamos el inicio del juego en el hilo principal
-                    UnityMainThreadDispatcher.Instance().Enqueue(() => {
-                        gameManager.EmpezarJuego();
-                    });
-
-                    using (NetworkStream stream = client.GetStream())
-                    {
-                        byte[] buffer = new byte[1024];
-                        int bytesRead;
-                        while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) != 0)
-                        {
-                            string message = Encoding.ASCII.GetString(buffer, 0, bytesRead);
-                            ProcessMessage(message);
-                        }
-                    }
+                    client = server.AcceptTcpClient();
                 }
+                catch (SocketException)
+                {
+                    break;
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
+
+                hasActiveClient = true;
+                string remote = client.Client.RemoteEndPoint?.ToString() ?? "unknown";
+                Debug.Log($"[Socket] Cliente conectado: {remote}");
+
+                mainThreadDispatcher.Enqueue(() =>
+                {
+                    Debug.Log($"[Socket] Cliente conectado. EsperandoConexionMovil={gameManager != null && gameManager.EsperandoConexionMovil}");
+                    if (gameManager != null && gameManager.isActiveAndEnabled && gameManager.EsperandoConexionMovil)
+                    {
+                        Debug.Log("[Socket] Llamando a EmpezarJuego()...");
+                        gameManager.EmpezarJuego();
+                    }
+                    else
+                    {
+                        Debug.Log("[Socket] NO se llama a EmpezarJuego (esperandoConexionMovil=false)");
+                    }
+                });
+
+                ThreadPool.QueueUserWorkItem(HandleClient, client);
             }
         }
+        catch (SocketException) { }
         catch (Exception e)
         {
-            UnityEngine.Debug.Log("Socket Error: " + e.Message);
+            Debug.LogError("[Socket] Error en listener: " + e.Message);
+        }
+    }
+
+    private void HandleClient(object state)
+    {
+        using TcpClient client = (TcpClient)state;
+        string remote = client.Client.RemoteEndPoint?.ToString() ?? "unknown";
+
+        try
+        {
+            using NetworkStream stream = client.GetStream();
+            using StreamReader reader = new StreamReader(stream, Encoding.ASCII);
+            string line;
+            while (keepListening && (line = reader.ReadLine()) != null)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                    ProcessMessage(line);
+            }
+        }
+        catch (IOException) { }
+        catch (ObjectDisposedException) { }
+        finally
+        {
+            hasActiveClient = false;
+            Debug.Log($"[Socket] Cliente desconectado: {remote}");
         }
     }
 
     private void ProcessMessage(string msg)
     {
-        // Formato esperado: Alpha,Beta,Gamma,Accion
+        if (gameManager == null) return;
+
         string[] data = msg.Split(',');
 
         if (data.Length >= 4)
         {
-            try
+            bool parsedAlpha = float.TryParse(data[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float alpha);
+            bool parsedBeta = float.TryParse(data[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float beta);
+            bool parsedGamma = float.TryParse(data[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float gamma);
+
+            if (!parsedAlpha || !parsedBeta || !parsedGamma)
+                return;
+
+            gameManager.sensor_Alpha = alpha;
+            gameManager.sensor_Beta = beta;
+            gameManager.sensor_Gamma = gamma;
+
+            string accion = data[3].Trim().ToLowerInvariant();
+
+            mainThreadDispatcher.Enqueue(() =>
             {
-                // 1. Actualizamos sensores de inclinación
-                gameManager.sensor_Alpha = float.Parse(data[0]);
-                gameManager.sensor_Beta = float.Parse(data[1]);
-                gameManager.sensor_Gamma = float.Parse(data[2]);
+                if (gameManager == null || !gameManager.isActiveAndEnabled) return;
 
-                // 2. Leemos la acción (botón pulsado)
-                string accion = data[3].Trim().ToLower();
-
-                // 3. Ejecutamos la acción en el hilo principal de Unity
-                UnityMainThreadDispatcher.Instance().Enqueue(() => {
-                    if (accion == "cambiar")
-                    { // BOTÓN A en el móvil
-                        gameManager.AccionBotonA();
-                    }
-                    else if (accion == "validar")
-                    { // BOTÓN B en el móvil
-                        gameManager.AccionBotonB();
-                    }
-                });
-
-            }
-            catch (Exception e)
-            {
-                // Ignoramos errores de parseo de datos corruptos
-            }
+                if (accion == "cambiar")
+                    gameManager.AccionBotonA();
+                else if (accion == "validar")
+                    gameManager.AccionBotonB();
+            });
         }
     }
 
@@ -110,9 +153,24 @@ public class SocketServer : MonoBehaviour
         return "127.0.0.1";
     }
 
+    void OnDestroy()
+    {
+        Debug.Log("[Socket] OnDestroy - deteniendo servidor...");
+        StopServer();
+    }
+
     void OnApplicationQuit()
     {
-        if (server != null) server.Stop();
-        if (listenThread != null) listenThread.Abort();
+        StopServer();
+    }
+
+    private void StopServer()
+    {
+        keepListening = false;
+        hasActiveClient = false;
+        try { server?.Stop(); } catch { }
+        if (listenThread != null && listenThread.IsAlive)
+            listenThread.Join(500);
+        Debug.Log("[Socket] Servidor detenido.");
     }
 }
