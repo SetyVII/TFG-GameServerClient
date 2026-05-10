@@ -78,15 +78,3 @@ https://<ip-del-pc>:8443/mobile.html
 ```
 
 Pulsar "Activar sensores" y mover el móvil para controlar la bola.
-
-## Skills del proyecto
-
-El proyecto usa skills de Claude Code para desarrollo:
-
-| Skill | Uso |
-|---|---|
-| `java-springboot` | Desarrollo del servidor Spring Boot |
-| `unity-developer` | Desarrollo del juego Unity |
-| `websocket-implementation` | Comunicación WebSocket en tiempo real |
-| `browser-extension-builder` | Cliente web y APIs de sensores |
-| `security-review` | Auditorías de seguridad |
