@@ -44,7 +44,7 @@ public class GameManagerLaberinto : MonoBehaviour
     public float zonaMuertaMovil = 0.08f;
     public float suavizadoMovil = 10f;
     public bool invertirEjeXMovil = false;
-    public bool invertirEjeYMovil = true;
+    public bool invertirEjeYMovil = false;
     public bool habilitarSaltoPorInclinacion = true;
     [Range(0.1f, 1f)] public float umbralSaltoInclinacion = 0.25f;
     [Range(0.05f, 0.9f)] public float umbralRearmeSaltoInclinacion = 0.12f;
@@ -269,20 +269,20 @@ public class GameManagerLaberinto : MonoBehaviour
         float x;
         float y;
 
-        // Soporta dos formatos desde backend:
-        // 1) grados crudos (beta/gamma, ej: 8.9)
-        // 2) tilt normalizado [-1..1]
         bool yaNormalizado = Mathf.Abs(sensor_Gamma) <= 1.2f && Mathf.Abs(sensor_Beta) <= 1.2f;
+
+        // sensor_Gamma = beta del móvil  -> izquierda/derecha (landscape)
+        // sensor_Beta  = gamma del móvil -> arriba/abajo   (landscape)
         if (yaNormalizado)
         {
             x = Mathf.Clamp(sensor_Gamma, -1f, 1f);
-            y = Mathf.Clamp(sensor_Beta, -1f, 1f);
+            y = Mathf.Clamp(sensor_Beta,  -1f, 1f);
         }
         else
         {
             float gradosMax = Mathf.Max(1f, maxInclinacionGrados);
             x = Mathf.Clamp(sensor_Gamma / gradosMax, -1f, 1f);
-            y = Mathf.Clamp(sensor_Beta / gradosMax, -1f, 1f);
+            y = Mathf.Clamp(sensor_Beta  / gradosMax, -1f, 1f);
         }
 
         if (invertirEjeXMovil) x = -x;
@@ -300,14 +300,15 @@ public class GameManagerLaberinto : MonoBehaviour
         float umbralDisparo = umbralSaltoInclinacion;
         float umbralRearme = Mathf.Min(umbralRearmeSaltoInclinacion, umbralDisparo - 0.01f);
 
-        if (!gestoSaltoMovilActivo && inclinacionVertical >= umbralDisparo)
+        // gamma negativo = salto (inclinar móvil hacia adelante)
+        if (!gestoSaltoMovilActivo && inclinacionVertical <= -umbralDisparo)
         {
             gestoSaltoMovilActivo = true;
             AccionBotonA();
             return;
         }
 
-        if (gestoSaltoMovilActivo && inclinacionVertical <= umbralRearme)
+        if (gestoSaltoMovilActivo && inclinacionVertical >= -umbralRearme)
         {
             gestoSaltoMovilActivo = false;
         }

@@ -2,50 +2,172 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Móvil - Control de movimiento</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Móvil - Mando virtual</title>
     <style>
-        body {
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            touch-action: manipulation;
+            background: #1a1a2e;
+            color: #eee;
             font-family: Arial, sans-serif;
-            margin: 1.25rem;
-            line-height: 1.4;
+            display: flex; flex-direction: column;
+            user-select: none;
+            -webkit-user-select: none;
         }
-        button {
-            width: 100%;
-            padding: 0.9rem 1rem;
-            border: 0;
-            border-radius: 10px;
-            background: #2563eb;
+
+        /* Barra superior */
+        #topbar {
+            display: flex; align-items: center; gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: #16213e;
+            font-size: 0.85rem;
+        }
+        #topbar button {
+            padding: 0.4rem 0.8rem;
+            border: 0; border-radius: 6px;
+            background: #0f3460; color: #fff;
+            font-size: 0.8rem; font-weight: 600;
+        }
+        #topbar button.active { background: #e94560; }
+        #status { margin-left: auto; font-size: 0.75rem; color: #aaa; }
+
+        /* Zona de juego */
+        #gamepad {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            gap: 1rem;
+        }
+
+        /* D-pad virtual izquierdo */
+        #dpad-area {
+            flex: 1;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #dpad {
+            width: min(30vw, 180px);
+            height: min(30vw, 180px);
+            border-radius: 50%;
+            background: radial-gradient(circle at center, #16213e 0%, #0f3460 100%);
+            border: 3px solid #e94560;
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+        }
+        #dpad-dot {
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            background: #e94560;
+            position: absolute;
+            transition: transform 0.05s linear;
+        }
+
+        /* Botones derechos */
+        #btn-area {
+            flex: 1;
+            display: flex; flex-direction: column;
+            align-items: center; gap: 1rem;
+        }
+        #btn-area button {
+            width: min(25vw, 120px);
+            height: min(25vw, 120px);
+            border: 3px solid transparent;
+            border-radius: 50%;
+            font-size: 1rem; font-weight: 800;
             color: #fff;
-            font-size: 1rem;
-            font-weight: 600;
+            touch-action: manipulation;
+            cursor: pointer;
         }
-        #status, #debug {
-            margin-top: 0.9rem;
+        #btnA {
+            background: #9333ea;
+            border-color: #a855f7;
+        }
+        #btnA:active { background: #7e22ce; }
+        #btnB {
+            background: #ea580c;
+            border-color: #f97316;
+        }
+        #btnB:active { background: #c2410c; }
+
+        /* Debug */
+        #debug {
+            padding: 0.5rem 1rem;
+            font-size: 0.7rem; color: #666;
+            text-align: center;
             white-space: pre-line;
+        }
+
+        /* Modo portrait: aviso */
+        #rotate-hint {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.9);
+            color: #fff;
+            flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 1.5rem;
+            z-index: 100;
+            text-align: center;
+            font-size: 1.2rem;
+        }
+        #rotate-hint button {
+            padding: 0.8rem 2rem;
+            font-size: 1rem; font-weight: 700;
+            border: 0; border-radius: 10px;
+            background: #e94560; color: #fff;
         }
     </style>
 </head>
 <body>
-<h1>Controlador móvil</h1>
-<p>Pulsa el botón para activar acelerómetro y giroscopio.</p>
-<button id="start">Activar sensores</button>
-<button id="release" disabled style="margin-top:0.55rem;background:#0f766e;">Soltar</button>
-<button id="btnA" disabled style="margin-top:0.55rem;background:#9333ea;">Saltar (A)</button>
-<button id="btnB" disabled style="margin-top:0.55rem;background:#ea580c;">Validar (B)</button>
-<div id="status">Socket: conectando...</div>
+
+<!-- Aviso para girar el móvil -->
+<div id="rotate-hint">
+    <p>&#x1F504; Gira el móvil a horizontal</p>
+    <button id="force-landscape">Forzar modo apaisado</button>
+</div>
+
+<!-- Barra superior -->
+<div id="topbar">
+    <button id="start">Activar sensores</button>
+    <button id="release">Soltar</button>
+    <button id="toggle-orientation">Voltear</button>
+    <span id="status">Socket: conectando...</span>
+</div>
+
+<!-- Mando virtual -->
+<div id="gamepad">
+    <div id="dpad-area">
+        <div id="dpad">
+            <div id="dpad-dot"></div>
+        </div>
+    </div>
+    <div id="btn-area">
+        <button id="btnA">A<br>SALTAR</button>
+        <button id="btnB">B<br>VALIDAR</button>
+    </div>
+</div>
+
 <div id="debug"></div>
-<div id="hint"></div>
 
 <script>
     const startBtn = document.getElementById("start");
     const releaseBtn = document.getElementById("release");
+    const toggleOrient = document.getElementById("toggle-orientation");
+    const forceLandscapeBtn = document.getElementById("force-landscape");
     const btnA = document.getElementById("btnA");
     const btnB = document.getElementById("btnB");
     const statusEl = document.getElementById("status");
     const debugEl = document.getElementById("debug");
-    const hintEl = document.getElementById("hint");
+    const dpadDot = document.getElementById("dpad-dot");
+    const rotateHint = document.getElementById("rotate-hint");
 
+    let isLandscapeMode = false;
+
+    // --- WebSocket ---
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${protocol}://${window.location.host}/ws/motion`);
 
@@ -61,11 +183,10 @@
             if (msg.type === "haptic" && navigator.vibrate) {
                 navigator.vibrate(Array.isArray(msg.pattern) ? msg.pattern : [90]);
             }
-        } catch (_) {
-            // ignore non-json messages
-        }
+        } catch (_) {}
     };
 
+    // --- Sensores ---
     let canSend = false;
     let lastSent = 0;
     let gotMotion = false;
@@ -79,56 +200,58 @@
         window.location.hostname !== "127.0.0.1";
 
     if (isPotentiallyBlockedByHttp) {
-        const secureUrl = `https://${window.location.hostname}:8443/mobile.html`;
-        hintEl.textContent = `Aviso: este móvil puede bloquear sensores en HTTP. Abre: ${secureUrl}`;
+        debugEl.textContent = `Aviso: usa HTTPS en puerto 8443 para sensores.`;
     }
 
     function sendSensorData(orientation, acceleration) {
         if (!canSend || socket.readyState !== WebSocket.OPEN) return;
         const now = Date.now();
-        if (now - lastSent < 35) return; // ~28 FPS
+        if (now - lastSent < 35) return;
         lastSent = now;
 
-        const gamma = orientation.gamma ?? 0; // izquierda/derecha
-        const beta = orientation.beta ?? 0;   // delante/detras
+        const rawGamma = orientation.gamma ?? 0;
+        const rawBeta = orientation.beta ?? 0;
+
+        // Mapeo landscape: beta -> tiltX (izq/der), gamma -> tiltY (arr/aba)
+        const tiltX = Math.max(-1, Math.min(1, rawBeta / 45));
+        const tiltY = Math.max(-1, Math.min(1, rawGamma / 45));
+
+        // Actualizar dot del d-pad
+        const dx = Math.max(-40, Math.min(40, tiltX * 40));
+        const dy = Math.max(-40, Math.min(40, tiltY * 40));
+        dpadDot.style.transform = `translate(${dx}px, ${dy}px)`;
 
         const payload = {
             type: "motion",
             role: "mobile",
-            tiltX: Math.max(-1, Math.min(1, gamma / 45)),
-            tiltY: Math.max(-1, Math.min(1, beta / 45)),
-            gamma,
-            beta,
+            tiltX,
+            tiltY,
+            gamma: rawGamma,
+            beta: rawBeta,
             alpha: orientation.alpha ?? 0,
             accX: acceleration.x ?? 0,
             accY: acceleration.y ?? 0,
             accZ: acceleration.z ?? 0,
+            orientation: isLandscapeMode ? "landscape" : "portrait",
             ts: now
         };
 
         socket.send(JSON.stringify(payload));
         debugEl.textContent =
-            `tiltX: ${payload.tiltX.toFixed(2)}\n` +
-            `tiltY: ${payload.tiltY.toFixed(2)}\n` +
-            `gamma: ${payload.gamma.toFixed(1)}\n` +
-            `beta: ${payload.beta.toFixed(1)}`;
+            `tiltX(beta): ${tiltX.toFixed(2)} | tiltY(gamma): ${tiltY.toFixed(2)}\n` +
+            `beta: ${rawBeta.toFixed(1)} | gamma: ${rawGamma.toFixed(1)}`;
     }
 
     async function requestPermissionsIfNeeded() {
         if (typeof DeviceMotionEvent !== "undefined" &&
             typeof DeviceMotionEvent.requestPermission === "function") {
-            const motionPermission = await DeviceMotionEvent.requestPermission();
-            if (motionPermission !== "granted") {
-                throw new Error("Permiso de acelerómetro denegado");
-            }
+            const p = await DeviceMotionEvent.requestPermission();
+            if (p !== "granted") throw new Error("Permiso acelerómetro denegado");
         }
-
         if (typeof DeviceOrientationEvent !== "undefined" &&
             typeof DeviceOrientationEvent.requestPermission === "function") {
-            const orientationPermission = await DeviceOrientationEvent.requestPermission();
-            if (orientationPermission !== "granted") {
-                throw new Error("Permiso de giroscopio denegado");
-            }
+            const p = await DeviceOrientationEvent.requestPermission();
+            if (p !== "granted") throw new Error("Permiso giroscopio denegado");
         }
     }
 
@@ -157,10 +280,7 @@
         await requestPermissionsIfNeeded();
 
         if (typeof DeviceMotionEvent === "undefined" && typeof DeviceOrientationEvent === "undefined") {
-            if (isPotentiallyBlockedByHttp) {
-                throw new Error("Sensores bloqueados en HTTP. Usa HTTPS en el puerto 8443.");
-            }
-            throw new Error("Este navegador no expone sensores de movimiento");
+            throw new Error("Sensores no disponibles. Usa HTTPS.");
         }
 
         window.addEventListener("deviceorientation", onOrientation, { passive: true });
@@ -168,53 +288,87 @@
         window.addEventListener("devicemotion", onMotion, { passive: true });
 
         canSend = true;
-        startBtn.disabled = true;
-        startBtn.textContent = "Sensores activos";
+        startBtn.textContent = "Sensores ON";
+        startBtn.classList.add("active");
         releaseBtn.disabled = false;
         btnA.disabled = false;
         btnB.disabled = false;
 
         setTimeout(() => {
             if (!gotMotion && !gotOrientation) {
-                statusEl.textContent = "No llegan eventos de sensores. Revisa permisos del navegador y prueba HTTPS.";
+                statusEl.textContent = "Sin eventos. ¿HTTPS?";
             }
         }, 3000);
     }
 
+    // --- Botones ---
     startBtn.addEventListener("click", async () => {
-        try {
-            await startSensors();
-        } catch (error) {
-            statusEl.textContent = `Error: ${error.message}`;
-        }
+        try { await startSensors(); }
+        catch (e) { statusEl.textContent = `Error: ${e.message}`; }
     });
 
     releaseBtn.addEventListener("click", () => {
         if (socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ type: "release", role: "mobile", ts: Date.now() }));
         }
-        if (navigator.vibrate) {
-            navigator.vibrate(35);
-        }
+        if (navigator.vibrate) navigator.vibrate(35);
     });
 
     btnA.addEventListener("click", () => {
         if (socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ type: "action", role: "mobile", action: "cambiar", ts: Date.now() }));
         }
-        if (navigator.vibrate) {
-            navigator.vibrate(25);
-        }
+        if (navigator.vibrate) navigator.vibrate(25);
     });
 
     btnB.addEventListener("click", () => {
         if (socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ type: "action", role: "mobile", action: "validar", ts: Date.now() }));
         }
-        if (navigator.vibrate) {
-            navigator.vibrate(25);
+        if (navigator.vibrate) navigator.vibrate(25);
+    });
+
+    // --- Orientación / Voltear ---
+    function lockLandscape() {
+        if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock("landscape").catch(() => {});
+        }
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        }
+        rotateHint.style.display = "none";
+        isLandscapeMode = true;
+        toggleOrient.textContent = "Apaisado";
+        toggleOrient.classList.add("active");
+    }
+
+    toggleOrient.addEventListener("click", () => {
+        if (!isLandscapeMode) {
+            lockLandscape();
+        } else {
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+            }
+            isLandscapeMode = false;
+            toggleOrient.textContent = "Voltear";
+            toggleOrient.classList.remove("active");
         }
     });
+
+    forceLandscapeBtn.addEventListener("click", lockLandscape);
+
+    // Mostrar hint si está en portrait
+    function checkOrientation() {
+        if (window.innerWidth < window.innerHeight) {
+            rotateHint.style.display = "flex";
+        } else {
+            rotateHint.style.display = "none";
+            isLandscapeMode = true;
+        }
+    }
+    window.addEventListener("resize", checkOrientation);
+    window.addEventListener("orientationchange", checkOrientation);
+    checkOrientation();
 </script>
 </body>
 </html>
