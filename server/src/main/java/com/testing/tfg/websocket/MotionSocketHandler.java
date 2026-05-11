@@ -1,5 +1,7 @@
 package com.testing.tfg.websocket;
 
+import com.testing.tfg.config.GameConfig;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -20,13 +22,15 @@ public class MotionSocketHandler extends TextWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(MotionSocketHandler.class);
 
     private final UnityTcpForwarder unityTcpForwarder;
+    private final GameConfig gameConfig;
     private final Set<WebSocketSession> sessions = new CopyOnWriteArraySet<>();
     private volatile float lastAlpha = 0f;
     private volatile float lastBeta = 0f;
     private volatile float lastGamma = 0f;
 
-    public MotionSocketHandler(UnityTcpForwarder unityTcpForwarder) {
+    public MotionSocketHandler(UnityTcpForwarder unityTcpForwarder, GameConfig gameConfig) {
         this.unityTcpForwarder = unityTcpForwarder;
+        this.gameConfig = gameConfig;
     }
 
     @Override
@@ -36,7 +40,13 @@ public class MotionSocketHandler extends TextWebSocketHandler {
                 session.getId(),
                 session.getRemoteAddress(),
                 sessions.size());
-        session.sendMessage(new TextMessage("Hola mundo desde el socket"));
+        sendUnityStatus(session);
+    }
+
+    private void sendUnityStatus(WebSocketSession session) throws IOException {
+        boolean validated = unityTcpForwarder.isUnityValidated();
+        String statusMsg = String.format("{\"type\":\"unityStatus\",\"connected\":%b}", validated);
+        session.sendMessage(new TextMessage(statusMsg));
     }
 
     @Override
@@ -50,7 +60,7 @@ public class MotionSocketHandler extends TextWebSocketHandler {
             log.info("mobile/web->java message: sessionId={} role={} type={}", session.getId(), role, type);
         }
         broadcast(payload);
-        forwardToUnityIfApplicable(payload);
+        forwardToUnityIfApplicable(session, payload);
     }
 
     @Override
@@ -77,7 +87,7 @@ public class MotionSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    private void forwardToUnityIfApplicable(String payload) {
+    private void forwardToUnityIfApplicable(WebSocketSession session, String payload) {
         try {
             String role = getStringField(payload, "role", "");
             if (!"mobile".equalsIgnoreCase(role)) {
@@ -87,7 +97,12 @@ public class MotionSocketHandler extends TextWebSocketHandler {
 
             String type = getStringField(payload, "type", "");
             if ("register".equalsIgnoreCase(type)) {
-                unityTcpForwarder.send(lastAlpha, lastBeta, lastGamma, "none");
+                if (!unityTcpForwarder.isUnityValidated()) {
+                    log.warn("java->unity rejected register: unity not validated after connection attempt");
+                    sendUnityStatus(session);
+                    return;
+                }
+                unityTcpForwarder.send(lastAlpha, lastBeta, lastGamma, "register");
                 log.info("java->unity forwarded register handshake from mobile");
                 return;
             }
@@ -126,6 +141,23 @@ public class MotionSocketHandler extends TextWebSocketHandler {
                 return;
             }
 
+            if ("config".equalsIgnoreCase(type)) {
+                String sensitivity = getStringField(payload, "sensitivity", gameConfig.getSensitivity());
+                int force = getIntField(payload, "force", gameConfig.getForce());
+                
+                gameConfig.setSensitivity(sensitivity);
+                gameConfig.setForce(force);
+                
+                log.info("java->game config updated: sensitivity={} force={}", sensitivity, force);
+                
+                // Reenviar configuración a Unity en formato especial
+                unityTcpForwarder.sendConfig(sensitivity, force);
+                
+                // Confirmar al cliente
+                session.sendMessage(new TextMessage("{\"type\":\"configSaved\",\"success\":true}"));
+                return;
+            }
+
             log.debug("java->unity ignored message type={}", type);
         } catch (Exception ignored) {
             // Non-JSON payloads are still valid for ws broadcast; only Unity forwarding requires JSON.
@@ -148,6 +180,19 @@ public class MotionSocketHandler extends TextWebSocketHandler {
         if (matcher.find()) {
             try {
                 return Float.parseFloat(matcher.group(1));
+            } catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
+    }
+
+    private static int getIntField(String json, String field, int fallback) {
+        Pattern pattern = Pattern.compile("\"" + Pattern.quote(field) + "\"\\s*:\\s*(-?\\d+)");
+        Matcher matcher = pattern.matcher(json);
+        if (matcher.find()) {
+            try {
+                return Integer.parseInt(matcher.group(1));
             } catch (NumberFormatException ignored) {
                 return fallback;
             }

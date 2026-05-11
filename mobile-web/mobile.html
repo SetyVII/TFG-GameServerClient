@@ -346,10 +346,17 @@
 
             socket.onopen = () => {
                 statusEl.textContent = "Socket: conectado";
-                socket.send(
-                    JSON.stringify({ type: "register", role: "mobile" }),
-                );
+                // No enviar register aquí - esperar a modo apaisado
+                checkAndSendRegister();
             };
+
+            function checkAndSendRegister() {
+                if (isLandscapeMode && socket.readyState === WebSocket.OPEN) {
+                    socket.send(
+                        JSON.stringify({ type: "register", role: "mobile" }),
+                    );
+                }
+            }
             socket.onclose = () =>
                 (statusEl.textContent = "Socket: desconectado");
             socket.onerror = () => (statusEl.textContent = "Socket: error");
@@ -756,6 +763,8 @@
                 isLandscapeMode = true;
                 toggleOrient.textContent = "Apaisado";
                 toggleOrient.classList.add("active");
+                // Enviar register al Unity cuando entramos en modo apaisado
+                checkAndSendRegister();
             }
 
             toggleOrient.addEventListener("click", () => {
@@ -779,7 +788,11 @@
                     rotateHint.style.display = "flex";
                 } else {
                     rotateHint.style.display = "none";
-                    isLandscapeMode = true;
+                    if (!isLandscapeMode) {
+                        isLandscapeMode = true;
+                        // Enviar register cuando se detecta apaisado
+                        checkAndSendRegister();
+                    }
                 }
             }
             window.addEventListener("resize", checkOrientation);

@@ -6,9 +6,25 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $keystorePath = Join-Path $projectRoot "src\main\resources\local-dev.p12"
 
 if (-not $JavaHome) {
-    $fallbackJavaHome = "C:\Users\madrid\.jdks\ms-21.0.10"
-    if (Test-Path $fallbackJavaHome) {
-        $JavaHome = $fallbackJavaHome
+    # Buscar JDKs disponibles en .jdks
+    $jdksPath = "C:\Users\madrid\.jdks"
+    if (Test-Path $jdksPath) {
+        $availableJdks = Get-ChildItem -Path $jdksPath -Directory | Where-Object {
+            Test-Path (Join-Path $_.FullName "bin\java.exe")
+        } | Sort-Object Name -Descending
+        
+        if ($availableJdks.Count -gt 0) {
+            $JavaHome = $availableJdks[0].FullName
+            Write-Host "JDK encontrado automáticamente: $JavaHome" -ForegroundColor Green
+        }
+    }
+    
+    # Fallback a path específico si no se encontró
+    if (-not $JavaHome) {
+        $fallbackJavaHome = "C:\Users\madrid\.jdks\corretto-21.0.10"
+        if (Test-Path $fallbackJavaHome) {
+            $JavaHome = $fallbackJavaHome
+        }
     }
 }
 
