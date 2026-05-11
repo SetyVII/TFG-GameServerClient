@@ -2,6 +2,7 @@ param(
     [string]$JavaHome = $env:JAVA_HOME
 )
 
+<<<<<<< HEAD
 # Detectar sistema operativo
 $IsWindows = $PSVersionTable.PSEdition -eq 'Desktop' -or $PSVersionTable.Platform -eq 'Win32NT'
 $IsLinux = $PSVersionTable.Platform -eq 'Unix' -and -not $IsMacOS
@@ -86,18 +87,59 @@ if (-not (Test-JavaPath $JavaHome)) {
 }
 
 if (-not (Test-JavaPath $JavaHome)) {
+=======
+$ErrorActionPreference = "Stop"
+
+# Detect platform (works on Windows PowerShell 5.1 and PowerShell Core 6+)
+$isWindows = if (Test-Path variable:IsWindows) { $IsWindows } else { [System.Environment]::OSVersion.Platform -eq 'Win32NT' }
+
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$keystorePath = Join-Path $projectRoot "src/main/resources/local-dev.p12"
+
+# --- JAVA_HOME detection ---
+if (-not $JavaHome) {
+    $javaCmd = (Get-Command java -ErrorAction SilentlyContinue).Source
+    if ($javaCmd) {
+        try {
+            $resolved = (Resolve-Path $javaCmd -ErrorAction Stop).Path
+            $javaBin = Split-Path -Parent $resolved
+            $candidate = Split-Path -Parent $javaBin
+            $javaExe = if ($isWindows) { "java.exe" } else { "java" }
+            if (Test-Path (Join-Path $candidate "bin" $javaExe)) {
+                $JavaHome = $candidate
+            }
+        } catch {}
+    }
+}
+
+$javaBinary = if ($isWindows) { "java.exe" } else { "java" }
+if (-not $JavaHome -or -not (Test-Path (Join-Path $JavaHome "bin" $javaBinary))) {
+>>>>>>> 8527d12 (ultimos cambios antes del merge)
     throw "No se encontró JAVA_HOME válido. Configura JAVA_HOME y vuelve a ejecutar."
 }
 
 $env:JAVA_HOME = $JavaHome
+<<<<<<< HEAD
 $env:Path = (Join-Path $JavaHome "bin") + [IO.Path]::PathSeparator + $env:Path
 $keytoolPath = Join-Path $JavaHome ("bin" + $sep + "keytool" + $exeExt)
+=======
+$env:Path = "$(Join-Path $JavaHome "bin")$([System.IO.Path]::PathSeparator)$env:Path"
+>>>>>>> 8527d12 (ultimos cambios antes del merge)
 
+# Verify keytool
+$keytoolExe = if ($isWindows) { "keytool.exe" } else { "keytool" }
+$keytoolPath = Join-Path $JavaHome "bin" $keytoolExe
 if (-not (Test-Path $keytoolPath)) {
+<<<<<<< HEAD
     throw "No se encontró keytool en $keytoolPath"
+=======
+    throw "No se encontró keytool en $($JavaHome)/bin"
+>>>>>>> 8527d12 (ultimos cambios antes del merge)
 }
 
+# --- Certificate generation ---
 if (-not (Test-Path $keystorePath)) {
+<<<<<<< HEAD
     if ($IsWindows) {
         $localIp = (Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Dhcp,Manual `
             | Where-Object {
@@ -122,10 +164,24 @@ if (-not (Test-Path $keystorePath)) {
             }
         }
     }
+=======
+    $localIp = $null
+    try {
+        $hostName = [System.Net.Dns]::GetHostName()
+        $hostEntry = [System.Net.Dns]::GetHostEntry($hostName)
+        $localIp = ($hostEntry.AddressList | Where-Object {
+            $_.AddressFamily -eq 'InterNetwork' -and
+            -not $_.IPAddressToString.StartsWith('127.') -and
+            -not $_.IPAddressToString.StartsWith('169.254.')
+        } | Select-Object -First 1).IPAddressToString
+    } catch {}
+>>>>>>> 8527d12 (ultimos cambios antes del merge)
 
     if (-not $localIp) {
         $localIp = "127.0.0.1"
     }
+
+    Write-Host "Generando certificado autofirmado para IP: $localIp"
 
     & $keytoolPath -genkeypair `
         -alias tfg-local `
@@ -142,14 +198,22 @@ if (-not (Test-Path $keystorePath)) {
     if ($LASTEXITCODE -ne 0) {
         throw "No se pudo generar el certificado local."
     }
+
+    Write-Host "Certificado generado en $keystorePath"
 }
 
 Set-Location $projectRoot
 
+<<<<<<< HEAD
 # Ejecutar Maven según el sistema operativo
 if ($IsWindows) {
     & .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=https"
 }
 else {
+=======
+if ($isWindows) {
+    & .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=https"
+} else {
+>>>>>>> 8527d12 (ultimos cambios antes del merge)
     & ./mvnw spring-boot:run "-Dspring-boot.run.profiles=https"
 }
