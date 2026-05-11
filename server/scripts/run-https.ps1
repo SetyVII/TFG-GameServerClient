@@ -6,7 +6,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $keystorePath = Join-Path $projectRoot "src\main\resources\local-dev.p12"
 
 if (-not $JavaHome) {
-    $fallbackJavaHome = "C:\Users\sebastian.vilavila\.jdks\ms-21.0.10"
+    $fallbackJavaHome = "C:\Users\madrid\.jdks\ms-21.0.10"
     if (Test-Path $fallbackJavaHome) {
         $JavaHome = $fallbackJavaHome
     }

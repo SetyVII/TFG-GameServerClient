@@ -1,6 +1,4 @@
 using System;
-using System.Globalization;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -13,25 +11,43 @@ public class SocketServer : MonoBehaviour
     private TcpListener server;
     private Thread listenThread;
     private GameManagerLaberinto gameManager;
-    private UnityMainThreadDispatcher mainThreadDispatcher;
-    private volatile bool keepListening = true;
-    private volatile bool hasActiveClient = false;
-
-    public bool IsClientConnected => hasActiveClient;
+    private UnityMainThreadDispatcher dispatcher;
+    private volatile bool unityValidated = false;
+    private volatile bool juegoIniciado = false;
+    private TcpClient currentClient;
+    private volatile bool shouldStop = false;
 
     void Start()
     {
         gameManager = GetComponent<GameManagerLaberinto>();
-        mainThreadDispatcher = UnityMainThreadDispatcher.Instance();
+        dispatcher = UnityMainThreadDispatcher.Instance();
 
         if (gameManager.textDisplayIP != null)
             gameManager.textDisplayIP.text = "IP: " + GetLocalIPAddress();
+        if (gameManager.textoEstadoConexion != null)
+            gameManager.textoEstadoConexion.text = "Esperando controlador...";
 
-        keepListening = true;
+        StartServer();
+    }
+
+    private void StartServer()
+    {
+        // Si ya hay un servidor corriendo, lo detenemos primero
+        if (listenThread != null && listenThread.IsAlive)
+        {
+            shouldStop = true;
+            if (server != null)
+            {
+                try { server.Stop(); } catch { }
+            }
+            listenThread.Join(1000);
+        }
+
+        shouldStop = false;
         listenThread = new Thread(ListenForClients);
         listenThread.IsBackground = true;
         listenThread.Start();
-        Debug.Log($"[Socket] Listener iniciado en puerto {port}. Esperando cliente...");
+        UnityEngine.Debug.Log("[SocketServer] Servidor iniciado");
     }
 
     private void ListenForClients()
@@ -40,108 +56,271 @@ public class SocketServer : MonoBehaviour
         {
             server = new TcpListener(IPAddress.Any, port);
             server.Start();
+            UnityEngine.Debug.Log("[SocketServer] Servidor iniciado en puerto " + port);
 
-            while (keepListening)
+            while (!shouldStop)
             {
-                TcpClient client;
-                try
+                // Usar BeginAcceptTcpClient para poder cancelar
+                if (!server.Pending())
                 {
-                    client = server.AcceptTcpClient();
-                }
-                catch (SocketException)
-                {
-                    break;
-                }
-                catch (ObjectDisposedException)
-                {
-                    break;
+                    Thread.Sleep(100);
+                    continue;
                 }
 
-                hasActiveClient = true;
-                string remote = client.Client.RemoteEndPoint?.ToString() ?? "unknown";
-                Debug.Log($"[Socket] Cliente conectado: {remote}");
+                TcpClient client = server.AcceptTcpClient();
+                UnityEngine.Debug.Log("[SocketServer] Cliente conectado desde: " + client.Client.RemoteEndPoint);
 
-                mainThreadDispatcher.Enqueue(() =>
-                {
-                    Debug.Log($"[Socket] Cliente conectado. EsperandoConexionMovil={gameManager != null && gameManager.EsperandoConexionMovil}");
-                    if (gameManager != null && gameManager.isActiveAndEnabled && gameManager.EsperandoConexionMovil)
-                    {
-                        Debug.Log("[Socket] Llamando a EmpezarJuego()...");
-                        gameManager.EmpezarJuego();
-                    }
-                    else
-                    {
-                        Debug.Log("[Socket] NO se llama a EmpezarJuego (esperandoConexionMovil=false)");
-                    }
-                });
+                // Cerramos conexi�n anterior si existe
+                CloseCurrentClient();
+                currentClient = client;
 
-                ThreadPool.QueueUserWorkItem(HandleClient, client);
+                // Procesamos mensajes en el mismo hilo (solo 1 conexi�n a la vez)
+                ProcessClient(client);
             }
         }
-        catch (SocketException) { }
         catch (Exception e)
         {
-            Debug.LogError("[Socket] Error en listener: " + e.Message);
+            if (!shouldStop)
+            {
+                UnityEngine.Debug.LogError("[SocketServer] Error en ListenForClients: " + e.Message);
+            }
         }
     }
 
-    private void HandleClient(object state)
+    private void ProcessClient(TcpClient client)
     {
-        using TcpClient client = (TcpClient)state;
-        string remote = client.Client.RemoteEndPoint?.ToString() ?? "unknown";
-
+        NetworkStream stream = null;
         try
         {
-            using NetworkStream stream = client.GetStream();
-            using StreamReader reader = new StreamReader(stream, Encoding.ASCII);
-            string line;
-            while (keepListening && (line = reader.ReadLine()) != null)
+            stream = client.GetStream();
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            StringBuilder messageBuffer = new StringBuilder();
+
+            while (!shouldStop)
             {
-                if (!string.IsNullOrWhiteSpace(line))
-                    ProcessMessage(line);
+                // Verificar si hay datos disponibles
+                if (!stream.DataAvailable)
+                {
+                    Thread.Sleep(50);
+                    continue;
+                }
+
+                bytesRead = stream.Read(buffer, 0, buffer.Length);
+                if (bytesRead == 0)
+                {
+                    UnityEngine.Debug.Log("[SocketServer] Cliente cerr� conexi�n normalmente");
+                    break;
+                }
+
+                string chunk = Encoding.ASCII.GetString(buffer, 0, bytesRead);
+                messageBuffer.Append(chunk);
+                UnityEngine.Debug.Log("[SocketServer] Bytes recibidos: " + bytesRead + " | Chunk: [" + chunk.Replace("\n", "\\n") + "]");
+
+                // Procesar mensajes completos (separados por \n)
+                ProcessBuffer(stream, messageBuffer);
             }
         }
-        catch (IOException) { }
-        catch (ObjectDisposedException) { }
+        catch (Exception e)
+        {
+            UnityEngine.Debug.LogWarning("[SocketServer] Error en ProcessClient: " + e.Message);
+        }
         finally
         {
-            hasActiveClient = false;
-            Debug.Log($"[Socket] Cliente desconectado: {remote}");
+            unityValidated = false;
+            juegoIniciado = false;
+            currentClient = null;
+            if (stream != null)
+            {
+                try { stream.Close(); } catch { }
+            }
+            dispatcher.Enqueue(() => {
+                if (gameManager.textoEstadoConexion != null)
+                    gameManager.textoEstadoConexion.text = "Esperando controlador...";
+            });
         }
+    }
+
+    private void ProcessBuffer(NetworkStream stream, StringBuilder messageBuffer)
+    {
+        string accumulated = messageBuffer.ToString();
+        int newlineIndex;
+
+        while ((newlineIndex = accumulated.IndexOf('\n')) >= 0)
+        {
+            string line = accumulated.Substring(0, newlineIndex).Trim();
+            accumulated = accumulated.Substring(newlineIndex + 1);
+
+            if (!string.IsNullOrEmpty(line))
+            {
+                UnityEngine.Debug.Log("[SocketServer] Procesando l�nea: [" + line + "]");
+                ProcessLine(stream, line);
+            }
+        }
+
+        messageBuffer.Clear();
+        messageBuffer.Append(accumulated);
+    }
+
+    private void ProcessLine(NetworkStream stream, string line)
+    {
+        if (line == "JAVA_HANDSHAKE")
+        {
+            try
+            {
+                byte[] response = Encoding.ASCII.GetBytes("UNITY_OK\n");
+                stream.Write(response, 0, response.Length);
+                stream.Flush();
+                unityValidated = true;
+                UnityEngine.Debug.Log("[SocketServer] Handshake exitoso - enviado UNITY_OK");
+
+                dispatcher.Enqueue(() => {
+                    if (gameManager.textoEstadoConexion != null)
+                        gameManager.textoEstadoConexion.text = "Controlador validado";
+                });
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError("[SocketServer] Error enviando handshake: " + ex.Message);
+            }
+            return;
+        }
+
+        if (line == "JAVA_PING")
+        {
+            try
+            {
+                byte[] response = Encoding.ASCII.GetBytes("UNITY_PONG\n");
+                stream.Write(response, 0, response.Length);
+                stream.Flush();
+                UnityEngine.Debug.Log("[SocketServer] Respondido UNITY_PONG");
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError("[SocketServer] Error enviando pong: " + ex.Message);
+            }
+            return;
+        }
+
+        if (line.StartsWith("CONFIG,"))
+        {
+            try
+            {
+                string[] configData = line.Split(',');
+                if (configData.Length >= 3)
+                {
+                    string sensitivity = configData[1];
+                    int force = int.Parse(configData[2]);
+                    
+                    UnityEngine.Debug.Log("[SocketServer] Config recibida - Sensitivity: " + sensitivity + " Force: " + force);
+                    
+                    dispatcher.Enqueue(() => {
+                        // Configurar fuerza y velocidad máxima según sensibilidad
+                        // Diferencias muy notorias entre niveles
+                        switch (sensitivity.ToLower())
+                        {
+                            case "low":
+                                gameManager.fuerzaMando = 0.8f;
+                                gameManager.velocidadMaximaMovil = 2f;
+                                break;
+                            case "medium":
+                                gameManager.fuerzaMando = 4.5f;
+                                gameManager.velocidadMaximaMovil = 8f;
+                                break;
+                            case "high":
+                                gameManager.fuerzaMando = 10.0f;
+                                gameManager.velocidadMaximaMovil = 15f;
+                                break;
+                            case "custom":
+                                gameManager.fuerzaMando = Mathf.Clamp(force / 10f, 0.5f, 10f);
+                                gameManager.velocidadMaximaMovil = Mathf.Clamp(force / 5f, 2f, 15f);
+                                break;
+                            default:
+                                gameManager.fuerzaMando = 3.0f;
+                                gameManager.velocidadMaximaMovil = 6f;
+                                break;
+                        }
+                        UnityEngine.Debug.Log("[SocketServer] Fuerza actualizada a: " + gameManager.fuerzaMando + ", Velocidad máx: " + gameManager.velocidadMaximaMovil);
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError("[SocketServer] Error procesando config: " + ex.Message);
+            }
+            return;
+        }
+
+        // Procesamos mensajes de datos (CSV)
+        ProcessMessage(line);
     }
 
     private void ProcessMessage(string msg)
     {
-        if (gameManager == null) return;
-
         string[] data = msg.Split(',');
+        UnityEngine.Debug.Log("[SocketServer] Parseando CSV, elementos: " + data.Length);
 
         if (data.Length >= 4)
         {
-            bool parsedAlpha = float.TryParse(data[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float alpha);
-            bool parsedBeta = float.TryParse(data[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float beta);
-            bool parsedGamma = float.TryParse(data[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float gamma);
-
-            if (!parsedAlpha || !parsedBeta || !parsedGamma)
-                return;
-
-            gameManager.sensor_Alpha = alpha;
-            gameManager.sensor_Beta = beta;
-            gameManager.sensor_Gamma = gamma;
-
-            string accion = data[3].Trim().ToLowerInvariant();
-
-            mainThreadDispatcher.Enqueue(() =>
+            try
             {
-                if (gameManager == null || !gameManager.isActiveAndEnabled) return;
+                float alpha = float.Parse(data[0]);
+                float beta = float.Parse(data[1]);
+                float gamma = float.Parse(data[2]);
+                string accion = data[3].Trim().ToLower();
+                
+                // Solo actualizar sensores si no es un mensaje de register (para evitar resetear a 0)
+                if (accion != "register")
+                {
+                    gameManager.sensor_Alpha = alpha;
+                    gameManager.sensor_Beta = beta;
+                    gameManager.sensor_Gamma = gamma;
+                }
+                
+                UnityEngine.Debug.Log("[SocketServer] Sensores actualizados - Alpha:" + alpha + " Beta:" + beta + " Gamma:" + gamma);
+                UnityEngine.Debug.Log("[SocketServer] Acci�n recibida: " + accion);
 
-                if (accion == "cambiar")
-                    gameManager.AccionBotonA();
-                else if (accion == "validar")
-                    gameManager.AccionBotonB();
-                else if (accion == "soplar")
-                    gameManager.AccionSoplar();
-            });
+                dispatcher.Enqueue(() => {
+                    if (accion == "register" && !juegoIniciado)
+                    {
+                        juegoIniciado = true;
+                        gameManager.EmpezarJuego();
+                    }
+                    else if (accion == "cambiar")
+                    {
+                        gameManager.AccionBotonA();
+                    }
+                    else if (accion == "validar")
+                    {
+                        gameManager.AccionBotonB();
+                    }
+                });
+
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogWarning("[SocketServer] Error parseando mensaje: " + e.Message);
+            }
+        }
+        else
+        {
+            UnityEngine.Debug.LogWarning("[SocketServer] Mensaje CSV inv�lido (menos de 4 elementos): [" + msg + "]");
+        }
+    }
+
+    private void CloseCurrentClient()
+    {
+        if (currentClient != null)
+        {
+            try
+            {
+                currentClient.Close();
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning("[SocketServer] Error cerrando cliente anterior: " + ex.Message);
+            }
+            currentClient = null;
         }
     }
 
@@ -155,24 +334,30 @@ public class SocketServer : MonoBehaviour
         return "127.0.0.1";
     }
 
-    void OnDestroy()
+    void OnDisable()
     {
-        Debug.Log("[Socket] OnDestroy - deteniendo servidor...");
-        StopServer();
+        // Se llama cuando el script se deshabilita o Unity recompila scripts
+        Cleanup();
     }
 
     void OnApplicationQuit()
     {
-        StopServer();
+        Cleanup();
     }
 
-    private void StopServer()
+    private void Cleanup()
     {
-        keepListening = false;
-        hasActiveClient = false;
-        try { server?.Stop(); } catch { }
+        shouldStop = true;
+        juegoIniciado = false;
+        if (server != null)
+        {
+            try { server.Stop(); } catch { }
+        }
+        CloseCurrentClient();
+        // No usar Thread.Abort() - est� deprecado y causa problemas
         if (listenThread != null && listenThread.IsAlive)
-            listenThread.Join(500);
-        Debug.Log("[Socket] Servidor detenido.");
+        {
+            listenThread.Join(1000); // Esperar 1 segundo a que termine
+        }
     }
 }

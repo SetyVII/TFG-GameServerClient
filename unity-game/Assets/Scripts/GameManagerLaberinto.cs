@@ -21,33 +21,22 @@ public class GameManagerLaberinto : MonoBehaviour
     public TextMeshProUGUI textoMonedasHUD;  // Texto de monedas durante el juego
 
     [Header("Referencias de Interfaz (Final)")]
-    public TextMeshProUGUI textoFinalVidas;
-    public TextMeshProUGUI textoFinalMonedas;
-    public TextMeshProUGUI textoFinalTitulo;
-    public Color colorVictoria = new Color(0.2f, 0.8f, 0.2f, 1f);
-    public Color colorDerrota = new Color(0.8f, 0.2f, 0.2f, 1f);
+    public TextMeshProUGUI textoFinalVidas;  // Texto de vidas en panel victoria/derrota
+    public TextMeshProUGUI textoFinalMonedas;// Texto de monedas en panel victoria/derrota
 
     [Header("Referencias de Juego")]
     public Rigidbody2D rbBola;
     public TextMeshProUGUI textDisplayIP;
+    public TextMeshProUGUI textoEstadoConexion;
 
     [Header("Configuraci�n de Control")]
-    public float fuerzaMando = 20f;
+    public float fuerzaMando = 4.5f; // Fuerza para AddForce (default = Medio)
     public float fuerzaTeclado = 25f;
-    public float multiplicadorMovil = 1.0f;
+    public float deadzoneMovil = 0.25f;
+    public float velocidadMaximaMovil = 8f; // Límite de velocidad horizontal (default = Medio)
     public float fuerzaSalto = 12f;
     public float tiempoSalto = 0.6f;
     public float cooldownSalto = 1.0f;
-    
-    [Header("Mapeo giroscopio m�vil")]
-    public float maxInclinacionGrados = 35f;
-    public float zonaMuertaMovil = 0.08f;
-    public float suavizadoMovil = 10f;
-    public bool invertirEjeXMovil = false;
-    public bool invertirEjeYMovil = false;
-    public bool habilitarSaltoPorInclinacion = true;
-    [Range(0.1f, 1f)] public float umbralSaltoInclinacion = 0.25f;
-    [Range(0.05f, 0.9f)] public float umbralRearmeSaltoInclinacion = 0.12f;
 
     [Header("Configuraci�n de Partida")]
     public int vidasTotales = 3;
@@ -55,21 +44,22 @@ public class GameManagerLaberinto : MonoBehaviour
     private int monedasRecogidas = 0;
 
     [HideInInspector] public float sensor_Alpha, sensor_Beta, sensor_Gamma;
+    private float smooth_Gamma;
+    private float gammaOffset = 0f;
+    private bool calibrado = false;
+    private int calibrationFrames = 0;
+    private const int CALIBRATION_NEEDED = 30; // 30 frames = ~0.5 segundos
     [HideInInspector] public bool estaSaltando = false;
-    public bool EsperandoConexionMovil => esperandoConexionMovil;
     private bool puedeSaltar = true;
 
     private bool juegoIniciado = false;
     private bool usaMovil = false;
-    private bool esperandoConexionMovil = false;
     private Vector3 escalaOriginal;
     private Vector3 posicionCheckpoint;
-    private Vector2 entradaMovilSuavizada = Vector2.zero;
-    private bool gestoSaltoMovilActivo = false;
 
     void Start()
     {
-        Debug.Log("[GameManager] Start() - inicializando juego");
+        // Inicializar valores
         vidasActuales = vidasTotales;
         monedasRecogidas = 0;
         ActualizarHUD();
@@ -140,57 +130,38 @@ public class GameManagerLaberinto : MonoBehaviour
         rbBola.linearVelocity = Vector2.zero;
         rbBola.simulated = false;
 
+        // Escribir resultados en los textos finales
         if (textoFinalVidas != null) textoFinalVidas.text = "Vidas: " + vidasActuales;
         if (textoFinalMonedas != null) textoFinalMonedas.text = "Monedas: " + monedasRecogidas;
 
         DesactivarTodo();
 
-        GameObject panelFinal = victoria ? panelVictoria : panelDerrota;
-        if (panelFinal == null) panelFinal = panelVictoria;
-
-        if (textoFinalTitulo != null)
-        {
-            textoFinalTitulo.text = victoria ? "Victoria!" : "Has Perdido";
-            textoFinalTitulo.color = victoria ? colorVictoria : colorDerrota;
-        }
-
-        panelFinal.SetActive(true);
+        if (victoria)
+            panelVictoria.SetActive(true);
+        else
+            panelDerrota.SetActive(true);
     }
 
     // --- NAVEGACI�N ---
 
-    public void MostrarMenuPrincipal() { esperandoConexionMovil = false; DesactivarTodo(); panelMenu.SetActive(true); }
+    public void MostrarMenuPrincipal() { DesactivarTodo(); panelMenu.SetActive(true); }
     public void AbrirInstrucciones() { panelInstrucciones.SetActive(true); }
     public void CerrarInstrucciones() { panelInstrucciones.SetActive(false); }
     public void IrAEleccionMando() { DesactivarTodo(); panelEleccionMando.SetActive(true); }
-    public void ElegirTeclado() { esperandoConexionMovil = false; usaMovil = false; EmpezarJuego(); }
-    public void ElegirMovil()
-    {
-        esperandoConexionMovil = true;
-        usaMovil = true;
-        DesactivarTodo();
-        panelIP.SetActive(true);
-
-        SocketServer socket = GetComponent<SocketServer>();
-        bool yaConectado = socket != null && socket.IsClientConnected;
-        Debug.Log($"[GameManager] ElegirMovil() - IsClientConnected={yaConectado}");
-
-        if (yaConectado)
-        {
-            Debug.Log("[GameManager] Cliente TCP ya conectado, iniciando juego directamente.");
-            EmpezarJuego();
-        }
-    }
+    public void ElegirTeclado() { usaMovil = false; EmpezarJuego(); }
+    public void ElegirMovil() { usaMovil = true; DesactivarTodo(); panelIP.SetActive(true); }
 
     public void EmpezarJuego()
     {
-        esperandoConexionMovil = false;
         DesactivarTodo();
         panelJuego.SetActive(true);
         rbBola.simulated = true;
-        entradaMovilSuavizada = Vector2.zero;
-        gestoSaltoMovilActivo = false;
         juegoIniciado = true;
+        // Resetear calibración para nueva partida
+        calibrado = false;
+        calibrationFrames = 0;
+        gammaOffset = 0f;
+        smooth_Gamma = 0f;
     }
 
     private void DesactivarTodo()
@@ -214,11 +185,6 @@ public class GameManagerLaberinto : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.Space) && puedeSaltar) AccionBotonA();
             if (Input.GetKeyDown(KeyCode.E)) AccionBotonB();
-            if (Input.GetKeyDown(KeyCode.F)) AccionSoplar();
-        }
-        else
-        {
-            ProcesarSaltoPorInclinacion();
         }
     }
 
@@ -226,92 +192,53 @@ public class GameManagerLaberinto : MonoBehaviour
     {
         if (!juegoIniciado) return;
 
-        Vector2 entradaMovimiento;
-        float fuerzaAplicada;
-
         if (usaMovil)
         {
-            Vector2 entradaMovil = ObtenerEntradaMovil();
-            float lerpFactor = 1f - Mathf.Exp(-suavizadoMovil * Time.fixedDeltaTime);
-            entradaMovilSuavizada = Vector2.Lerp(entradaMovilSuavizada, entradaMovil, lerpFactor);
-            entradaMovimiento = entradaMovilSuavizada;
-            fuerzaAplicada = fuerzaTeclado * multiplicadorMovil;
+            // Fase de calibración: promediar 30 frames (~0.5 segundos) para obtener offset preciso
+            if (!calibrado)
+            {
+                gammaOffset += sensor_Gamma;
+                calibrationFrames++;
+                
+                if (calibrationFrames >= CALIBRATION_NEEDED)
+                {
+                    gammaOffset /= CALIBRATION_NEEDED;
+                    calibrado = true;
+                    UnityEngine.Debug.Log("[GameManager] Calibrado completado. Offset: " + gammaOffset + " (" + calibrationFrames + " frames)");
+                }
+                return; // No mover durante calibración
+            }
+            
+            // Leer gamma directamente del sensor
+            float gammaRelativo = sensor_Gamma - gammaOffset;
+            
+            // Normalizar: 30° de inclinación = input máximo
+            float inputX = Mathf.Clamp(gammaRelativo / 30f, -1f, 1f);
+            
+            // Deadzone
+            if (Mathf.Abs(inputX) < deadzoneMovil)
+            {
+                inputX = 0f;
+            }
+            
+            // OPCIÓN B: Física realista con AddForce
+            // Fuerza proporcional a la inclinación
+            rbBola.AddForce(new Vector2(inputX, 0f) * fuerzaMando);
+            
+            // Limitar velocidad horizontal máxima (la gravedad en Y sigue libre)
+            if (Mathf.Abs(rbBola.linearVelocity.x) > velocidadMaximaMovil)
+            {
+                rbBola.linearVelocity = new Vector2(
+                    Mathf.Sign(rbBola.linearVelocity.x) * velocidadMaximaMovil,
+                    rbBola.linearVelocity.y
+                );
+            }
         }
         else
         {
             float moveX = Input.GetAxis("Horizontal");
             float moveY = Input.GetAxis("Vertical");
-            entradaMovimiento = new Vector2(moveX, moveY);
-            fuerzaAplicada = fuerzaTeclado;
-        }
-
-        rbBola.AddForce(entradaMovimiento * fuerzaAplicada, ForceMode2D.Force);
-
-        if (rbBola.linearVelocity.magnitude > 25f)
-        {
-            rbBola.linearVelocity = rbBola.linearVelocity.normalized * 25f;
-        }
-    }
-
-    private Vector2 ObtenerEntradaMovil()
-    {
-        Vector2 entrada = ObtenerEntradaMovilSinZonaMuerta();
-        float x = entrada.x;
-        float y = entrada.y;
-
-        if (Mathf.Abs(x) < zonaMuertaMovil) x = 0f;
-        if (Mathf.Abs(y) < zonaMuertaMovil) y = 0f;
-
-        return new Vector2(x, y);
-    }
-
-    private Vector2 ObtenerEntradaMovilSinZonaMuerta()
-    {
-        float x;
-        float y;
-
-        bool yaNormalizado = Mathf.Abs(sensor_Gamma) <= 1.2f && Mathf.Abs(sensor_Beta) <= 1.2f;
-
-        // sensor_Gamma = beta del móvil  -> izquierda/derecha (landscape)
-        // sensor_Beta  = gamma del móvil -> arriba/abajo   (landscape)
-        if (yaNormalizado)
-        {
-            x = Mathf.Clamp(sensor_Gamma, -1f, 1f);
-            y = Mathf.Clamp(sensor_Beta,  -1f, 1f);
-        }
-        else
-        {
-            float gradosMax = Mathf.Max(1f, maxInclinacionGrados);
-            x = Mathf.Clamp(sensor_Gamma / gradosMax, -1f, 1f);
-            y = Mathf.Clamp(sensor_Beta  / gradosMax, -1f, 1f);
-        }
-
-        if (invertirEjeXMovil) x = -x;
-        if (invertirEjeYMovil) y = -y;
-
-        return new Vector2(x, y);
-    }
-
-    private void ProcesarSaltoPorInclinacion()
-    {
-        if (!habilitarSaltoPorInclinacion) return;
-
-        Vector2 entradaMovilRaw = ObtenerEntradaMovilSinZonaMuerta();
-        float inclinacionVertical = entradaMovilRaw.y;
-        float umbralDisparo = umbralSaltoInclinacion;
-        float umbralRearme = Mathf.Min(umbralRearmeSaltoInclinacion, umbralDisparo - 0.01f);
-
-        // gamma negativo = salto (inclinar móvil hacia adelante)
-        if (!gestoSaltoMovilActivo && inclinacionVertical <= -umbralDisparo)
-        {
-            gestoSaltoMovilActivo = true;
-            AccionBotonA();
-            return;
-        }
-
-        if (gestoSaltoMovilActivo && inclinacionVertical >= -umbralRearme)
-        {
-            gestoSaltoMovilActivo = false;
+            rbBola.AddForce(new Vector2(moveX, moveY) * fuerzaTeclado);
         }
     }
 
@@ -358,15 +285,7 @@ public class GameManagerLaberinto : MonoBehaviour
         foreach (Interruptor inter in todos) inter.IntentarActivar();
     }
 
-    public void AccionSoplar()
-    {
-        if (!juegoIniciado) return;
-        Debug.Log("[GameManager] AccionSoplar() - buscando Soplables...");
-        Soplable[] todos = UnityEngine.Object.FindObjectsByType<Soplable>(FindObjectsSortMode.None);
-        foreach (Soplable s in todos) s.Activar();
-    }
-
-    public void VolverAlMenuPrincipal() { Debug.Log("[GameManager] VolverAlMenuPrincipal - recargando escena..."); SceneManager.LoadScene(SceneManager.GetActiveScene().name); }
+    public void VolverAlMenuPrincipal() { SceneManager.LoadScene(SceneManager.GetActiveScene().name); }
 
     public void SalirDelJuego()
     {
