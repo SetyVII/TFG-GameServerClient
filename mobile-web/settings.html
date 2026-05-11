@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Configuraci�n - Mando WiiCell</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-card: #0f3460;
+            --text-primary: #eee;
+            --text-secondary: #aaa;
+            --accent: #e94560;
+            --accent-hover: #c73e54;
+            --success: #22c55e;
+            --border: #1e3a5f;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #e8e8e8;
+            --bg-card: #fff;
+            --text-primary: #333;
+            --text-secondary: #666;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --success: #16a34a;
+            --border: #ddd;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 1rem;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .back-btn {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .back-btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            transition: background 0.3s;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Toggle Switch */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .toggle-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .toggle-label {
+            font-size: 0.95rem;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: .3s;
+            border-radius: 28px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+
+        /* Range Slider */
+        .range-container {
+            margin-top: 0.5rem;
+        }
+
+        .range-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .range-value {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: var(--bg-card);
+            outline: none;
+            -webkit-appearance: none;
+            border: 1px solid var(--border);
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            border: none;
+        }
+
+        /* Sensitivity Options */
+        .sensitivity-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+        }
+
+        .sens-option {
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .sens-option:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .sens-option.selected {
+            border-color: var(--accent);
+            background: rgba(233, 69, 96, 0.1);
+        }
+
+        .sens-option .icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .sens-option .label {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .sens-option .desc {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.2rem;
+        }
+
+        /* Custom Input */
+        .custom-section {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            display: none;
+        }
+
+        .custom-section.visible {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 0.75rem;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.3rem;
+            font-size: 0.9rem;
+        }
+
+        .input-group input[type="number"] {
+            width: 100%;
+            padding: 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .hint {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.3rem;
+        }
+
+        /* Save Button */
+        .save-btn {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 10px;
+            background: var(--accent);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 1rem;
+        }
+
+        .save-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .save-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Status Message */
+        .status-msg {
+            text-align: center;
+            padding: 0.75rem;
+            margin-top: 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .status-msg.success {
+            display: block;
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+
+        .status-msg.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        /* Current Values Display */
+        .current-values {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+        }
+
+        .current-values .row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.3rem;
+        }
+
+        .current-values .row:last-child {
+            margin-bottom: 0;
+        }
+
+        .current-values .val {
+            font-weight: 600;
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>&#9881; Configuraci�n</h1>
+            <a href="mobile.html" class="back-btn">&#8592; Volver</a>
+        </header>
+
+        <!-- Apariencia -->
+        <div class="card">
+            <div class="card-title">&#127769; Apariencia</div>
+            
+            <div class="toggle-row">
+                <span class="toggle-label">Modo oscuro</span>
+                <label class="switch">
+                    <input type="checkbox" id="darkModeToggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="range-container">
+                <div class="range-header">
+                    <span>Tama�o del texto</span>
+                    <span class="range-value" id="fontSizeValue">16px</span>
+                </div>
+                <input type="range" id="fontSizeSlider" min="12" max="24" value="16" step="1">
+            </div>
+        </div>
+
+        <!-- Sensibilidad -->
+        <div class="card">
+            <div class="card-title">&#127918; Sensibilidad del control</div>
+            
+            <div class="sensitivity-grid">
+                <div class="sens-option" data-sensitivity="low" onclick="selectSensitivity('low')">
+                    <div class="icon" style="font-family: monospace; font-size: 1.8rem; font-weight: bold;">></div>
+                    <div class="label">Bajo</div>
+                    <div class="desc">0.8 - Muy lento</div>
+                </div>
+                <div class="sens-option selected" data-sensitivity="medium" onclick="selectSensitivity('medium')">
+                    <div class="icon" style="font-family: monospace; font-size: 1.8rem; font-weight: bold;">>></div>
+                    <div class="label">Medio</div>
+                    <div class="desc">4.5 - Balance</div>
+                </div>
+                <div class="sens-option" data-sensitivity="high" onclick="selectSensitivity('high')">
+                    <div class="icon" style="font-family: monospace; font-size: 1.8rem; font-weight: bold;">>>></div>
+                    <div class="label">Alto</div>
+                    <div class="desc">10.0 - Rápido</div>
+                </div>
+                <div class="sens-option" data-sensitivity="custom" onclick="selectSensitivity('custom')">
+                    <div class="icon" style="font-family: monospace; font-size: 1.8rem; font-weight: bold;">&#9881;</div>
+                    <div class="label">Custom</div>
+                    <div class="desc">Tu valor</div>
+                </div>
+            </div>
+
+            <div class="custom-section" id="customSection">
+                <div class="input-group">
+                    <label for="customForce">Fuerza del mando (1-100):</label>
+                    <input type="number" id="customForce" min="1" max="100" value="45">
+                    <div class="hint">Valores: Bajo=8, Medio=45, Alto=100</div>
+                </div>
+            </div>
+
+            <div class="current-values" id="currentValues">
+                <div class="row">
+                    <span>Nivel:</span>
+                    <span class="val" id="currentLevel">Medio</span>
+                </div>
+                <div class="row">
+                    <span>Fuerza:</span>
+                    <span class="val" id="currentForce">4.5</span>
+                </div>
+            </div>
+        </div>
+
+        <button class="save-btn" id="saveBtn" onclick="saveSettings()">
+            &#128190; Guardar configuraci�n
+        </button>
+
+        <div class="status-msg" id="statusMsg"></div>
+    </div>
+
+    <script>
+        // Configuraci�n por defecto
+        const defaults = {
+            darkMode: true,
+            fontSize: 16,
+            sensitivity: 'medium',
+            customForce: 45
+        };
+
+        // Valores de fuerza para cada nivel
+        const sensitivityMap = {
+            low: { force: 8, label: 'Bajo', desc: '0.8' },
+            medium: { force: 45, label: 'Medio', desc: '4.5' },
+            high: { force: 100, label: 'Alto', desc: '10.0' }
+        };
+
+        let currentSettings = { ...defaults };
+
+        // Cargar configuraci�n guardada
+        function loadSettings() {
+            const saved = localStorage.getItem('wiiCellSettings');
+            if (saved) {
+                currentSettings = JSON.parse(saved);
+            }
+            applySettings();
+        }
+
+        // Guardar configuraci�n
+        function saveSettings() {
+            currentSettings.darkMode = document.getElementById('darkModeToggle').checked;
+            currentSettings.fontSize = parseInt(document.getElementById('fontSizeSlider').value);
+            
+            if (currentSettings.sensitivity === 'custom') {
+                currentSettings.customForce = parseInt(document.getElementById('customForce').value) || 45;
+            }
+
+            localStorage.setItem('wiiCellSettings', JSON.stringify(currentSettings));
+            
+            // Guardar tambi�n en formato para mobile.html
+            const force = getCurrentForce();
+            localStorage.setItem('wiiCellGameConfig', JSON.stringify({
+                sensitivity: currentSettings.sensitivity,
+                force: force,
+                updatedAt: Date.now()
+            }));
+
+            showStatus('&#9989; Configuraci�n guardada correctamente', 'success');
+            updateCurrentValues();
+        }
+
+        // Aplicar configuraci�n a la UI
+        function applySettings() {
+            document.getElementById('darkModeToggle').checked = currentSettings.darkMode;
+            document.getElementById('fontSizeSlider').value = currentSettings.fontSize;
+            document.getElementById('customForce').value = currentSettings.customForce;
+            
+            applyTheme(currentSettings.darkMode);
+            applyFontSize(currentSettings.fontSize);
+            selectSensitivity(currentSettings.sensitivity);
+        }
+
+        // Aplicar tema
+        function applyTheme(dark) {
+            document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        }
+
+        // Aplicar tama�o de fuente
+        function applyFontSize(size) {
+            document.body.style.fontSize = size + 'px';
+            document.getElementById('fontSizeValue').textContent = size + 'px';
+        }
+
+        // Seleccionar sensibilidad
+        function selectSensitivity(value) {
+            currentSettings.sensitivity = value;
+            
+            // Actualizar UI
+            document.querySelectorAll('.sens-option').forEach(opt => {
+                opt.classList.toggle('selected', opt.dataset.sensitivity === value);
+            });
+
+            // Mostrar/ocultar input custom
+            document.getElementById('customSection').classList.toggle('visible', value === 'custom');
+            
+            updateCurrentValues();
+        }
+
+        // Obtener fuerza actual
+        function getCurrentForce() {
+            if (currentSettings.sensitivity === 'custom') {
+                return currentSettings.customForce;
+            }
+            return sensitivityMap[currentSettings.sensitivity]?.force || 45;
+        }
+
+        // Actualizar display de valores actuales
+        function updateCurrentValues() {
+            const level = currentSettings.sensitivity;
+            const force = getCurrentForce();
+            const map = sensitivityMap[level];
+            
+            document.getElementById('currentLevel').textContent = map ? map.label : 'Personalizado';
+            document.getElementById('currentForce').textContent = level === 'custom' ? (force / 10).toFixed(1) : map.desc;
+        }
+
+        // Mostrar mensaje de estado
+        function showStatus(msg, type) {
+            const el = document.getElementById('statusMsg');
+            el.innerHTML = msg;
+            el.className = 'status-msg ' + type;
+            setTimeout(() => {
+                el.className = 'status-msg';
+            }, 3000);
+        }
+
+        // Event Listeners
+        document.getElementById('darkModeToggle').addEventListener('change', (e) => {
+            applyTheme(e.target.checked);
+        });
+
+        document.getElementById('fontSizeSlider').addEventListener('input', (e) => {
+            applyFontSize(e.target.value);
+        });
+
+        document.getElementById('customForce').addEventListener('input', (e) => {
+            let val = parseInt(e.target.value);
+            if (val < 1) val = 1;
+            if (val > 100) val = 100;
+            e.target.value = val;
+            currentSettings.customForce = val;
+            updateCurrentValues();
+        });
+
+        // Inicializar
+        loadSettings();
+    </script>
+</body>
+</html>

@@ -52,6 +52,20 @@
             #topbar button.mic-active {
                 background: #dc2626;
             }
+            #settings-btn {
+                margin-left: 0.5rem;
+                padding: 0.4rem 0.6rem;
+                font-size: 1.2rem;
+                background: #0f3460;
+                border: none;
+                border-radius: 6px;
+                color: #fff;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            #settings-btn:hover {
+                background: #1a4a7a;
+            }
             #status {
                 margin-left: auto;
                 font-size: 0.75rem;
@@ -282,6 +296,7 @@
             <button id="test-vibe">Vib test</button>
             <button id="toggle-orientation">Voltear</button>
             <span id="status">Socket: conectando...</span>
+            <button id="settings-btn" title="Configuraci�n">&#9881;</button>
         </div>
 
         <div id="mic-panel">
@@ -334,6 +349,7 @@
             const volumeText = document.getElementById("volume-text");
             const micValue = document.getElementById("mic-value");
             const blowFlash = document.getElementById("blow-flash");
+            const settingsBtn = document.getElementById("settings-btn");
 
             let isLandscapeMode = false;
 
@@ -346,9 +362,25 @@
 
             socket.onopen = () => {
                 statusEl.textContent = "Socket: conectado";
-                // No enviar register aquí - esperar a modo apaisado
+                // Enviar configuración guardada primero
+                sendSavedConfig();
+                // Luego check para register
                 checkAndSendRegister();
             };
+
+            function sendSavedConfig() {
+                const saved = localStorage.getItem('wiiCellGameConfig');
+                if (saved && socket.readyState === WebSocket.OPEN) {
+                    const config = JSON.parse(saved);
+                    socket.send(JSON.stringify({
+                        type: "config",
+                        role: "mobile",
+                        sensitivity: config.sensitivity || "medium",
+                        force: config.force || 45,
+                        ts: Date.now()
+                    }));
+                }
+            }
 
             function checkAndSendRegister() {
                 if (isLandscapeMode && socket.readyState === WebSocket.OPEN) {
@@ -747,6 +779,11 @@
                     );
                 }
                 onVibrate(25);
+            });
+
+            // --- Botón de configuración ---
+            settingsBtn.addEventListener("click", () => {
+                window.location.href = "settings.html";
             });
 
             // --- Orientación / Voltear ---

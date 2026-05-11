@@ -216,31 +216,39 @@ public class SocketServer : MonoBehaviour
                     
                     dispatcher.Enqueue(() => {
                         // Configurar fuerza y velocidad máxima según sensibilidad
-                        // Diferencias muy notorias entre niveles
+                        // Valores extremos para notar la diferencia
                         switch (sensitivity.ToLower())
                         {
                             case "low":
-                                gameManager.fuerzaMando = 0.8f;
-                                gameManager.velocidadMaximaMovil = 2f;
+                                gameManager.fuerzaMando = 0.5f;  // Muy lento
+                                gameManager.velocidadMaximaMovil = 3f;
                                 break;
                             case "medium":
-                                gameManager.fuerzaMando = 4.5f;
-                                gameManager.velocidadMaximaMovil = 8f;
+                                gameManager.fuerzaMando = 5.0f;  // Normal
+                                gameManager.velocidadMaximaMovil = 10f;
                                 break;
                             case "high":
-                                gameManager.fuerzaMando = 10.0f;
-                                gameManager.velocidadMaximaMovil = 15f;
+                                gameManager.fuerzaMando = 20.0f;  // Muy rápido
+                                gameManager.velocidadMaximaMovil = 25f;
                                 break;
                             case "custom":
-                                gameManager.fuerzaMando = Mathf.Clamp(force / 10f, 0.5f, 10f);
-                                gameManager.velocidadMaximaMovil = Mathf.Clamp(force / 5f, 2f, 15f);
+                                float fuerzaCustom = Mathf.Clamp(force / 10f, 0.5f, 25f);
+                                gameManager.fuerzaMando = fuerzaCustom;
+                                gameManager.velocidadMaximaMovil = fuerzaCustom * 1.5f;
                                 break;
                             default:
-                                gameManager.fuerzaMando = 3.0f;
-                                gameManager.velocidadMaximaMovil = 6f;
+                                gameManager.fuerzaMando = 5.0f;
+                                gameManager.velocidadMaximaMovil = 10f;
                                 break;
                         }
-                        UnityEngine.Debug.Log("[SocketServer] Fuerza actualizada a: " + gameManager.fuerzaMando + ", Velocidad máx: " + gameManager.velocidadMaximaMovil);
+                        string msg = "[SocketServer] CONFIG APLICADA: " + sensitivity + " | Fuerza: " + gameManager.fuerzaMando + " | Vel.Max: " + gameManager.velocidadMaximaMovil;
+                        UnityEngine.Debug.Log(msg);
+                        
+                        // Mostrar en UI si existe texto de estado
+                        if (gameManager.textoEstadoConexion != null)
+                        {
+                            gameManager.textoEstadoConexion.text = "Sensibilidad: " + sensitivity.ToUpper() + " (F" + gameManager.fuerzaMando + ")";
+                        }
                     });
                 }
             }
