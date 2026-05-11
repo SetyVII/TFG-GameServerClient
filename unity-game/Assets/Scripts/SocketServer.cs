@@ -13,7 +13,6 @@ public class SocketServer : MonoBehaviour
     private GameManagerLaberinto gameManager;
     private UnityMainThreadDispatcher dispatcher;
     private volatile bool unityValidated = false;
-    private volatile bool juegoIniciado = false;
     private TcpClient currentClient;
     private volatile bool shouldStop = false;
 
@@ -128,7 +127,6 @@ public class SocketServer : MonoBehaviour
         finally
         {
             unityValidated = false;
-            juegoIniciado = false;
             currentClient = null;
             if (stream != null)
             {
@@ -289,9 +287,8 @@ public class SocketServer : MonoBehaviour
                 UnityEngine.Debug.Log("[SocketServer] Acci�n recibida: " + accion);
 
                 dispatcher.Enqueue(() => {
-                    if (accion == "register" && !juegoIniciado)
+                    if (accion == "register" && !gameManager.JuegoIniciado)
                     {
-                        juegoIniciado = true;
                         gameManager.EmpezarJuego();
                     }
                     else if (accion == "cambiar")
@@ -356,7 +353,6 @@ public class SocketServer : MonoBehaviour
     private void Cleanup()
     {
         shouldStop = true;
-        juegoIniciado = false;
         if (server != null)
         {
             try { server.Stop(); } catch { }

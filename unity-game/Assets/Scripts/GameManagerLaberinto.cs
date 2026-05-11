@@ -43,7 +43,7 @@ public class GameManagerLaberinto : MonoBehaviour
     private int vidasActuales;
     private int monedasRecogidas = 0;
 
-    [HideInInspector] public float sensor_Alpha, sensor_Beta, sensor_Gamma;
+    [HideInInspector] public volatile float sensor_Alpha, sensor_Beta, sensor_Gamma;
     private float smooth_Gamma;
     private float gammaOffset = 0f;
     private bool calibrado = false;
@@ -53,6 +53,7 @@ public class GameManagerLaberinto : MonoBehaviour
     private bool puedeSaltar = true;
 
     private bool juegoIniciado = false;
+    public bool JuegoIniciado => juegoIniciado;
     private bool usaMovil = false;
     private Vector3 escalaOriginal;
     private Vector3 posicionCheckpoint;
