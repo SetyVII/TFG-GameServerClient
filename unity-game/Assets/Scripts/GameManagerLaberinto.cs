@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 using TMPro;
 
 public class GameManagerLaberinto : MonoBehaviour
@@ -17,8 +18,11 @@ public class GameManagerLaberinto : MonoBehaviour
     public GameObject panelJuego;
 
     [Header("Referencias de Interfaz (HUD)")]
-    public TextMeshProUGUI textoVidasHUD;    // Texto de vidas durante el juego
-    public TextMeshProUGUI textoMonedasHUD;  // Texto de monedas durante el juego
+    public Image[] imagenesVidas = new Image[3]; // 3 corazones en el HUD
+    public Sprite spriteCorazonCompleto;
+    public Sprite spriteCorazonVacio;
+    public Image iconoMonedaHUD;             // Icono de moneda en el HUD
+    public TextMeshProUGUI textoMonedasHUD;  // Texto del número de monedas
 
     [Header("Referencias de Interfaz (Final)")]
     public TextMeshProUGUI textoFinalVidas;  // Texto de vidas en panel victoria/derrota
@@ -60,6 +64,12 @@ public class GameManagerLaberinto : MonoBehaviour
 
     void Start()
     {
+        // Cargar sprites de corazones desde Resources
+        if (spriteCorazonCompleto == null)
+            spriteCorazonCompleto = Resources.Load<Sprite>("CorazonCompleto");
+        if (spriteCorazonVacio == null)
+            spriteCorazonVacio = Resources.Load<Sprite>("CorazonVacio");
+
         // Inicializar valores
         vidasActuales = vidasTotales;
         monedasRecogidas = 0;
@@ -87,8 +97,18 @@ public class GameManagerLaberinto : MonoBehaviour
 
     private void ActualizarHUD()
     {
-        if (textoVidasHUD != null) textoVidasHUD.text = "Vidas: " + vidasActuales;
-        if (textoMonedasHUD != null) textoMonedasHUD.text = "Monedas: " + monedasRecogidas;
+        // Actualizar corazones del HUD
+        for (int i = 0; i < imagenesVidas.Length; i++)
+        {
+            if (imagenesVidas[i] != null)
+            {
+                if (i < vidasActuales)
+                    imagenesVidas[i].sprite = spriteCorazonCompleto;
+                else
+                    imagenesVidas[i].sprite = spriteCorazonVacio;
+            }
+        }
+        if (textoMonedasHUD != null) textoMonedasHUD.text = monedasRecogidas.ToString();
     }
 
     public void ActualizarCheckpoint(Vector3 nuevaPosicion)

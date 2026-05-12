@@ -21,6 +21,10 @@ unity-game/*.suo
 unity-game/*.user
 unity-game/*.userprefs
 unity-game/*.userosscache
+# Versiones (Problema)
+unity-game/Packages/manifest.json
+unity-game/Packages/packages-lock.json
+
 
 # Unity IDE / editor
 unity-game/.vs/
@@ -115,6 +119,3 @@ CLAUDE.local.md
 
 # Generated docs
 docs/*.pdf
-
-// Plan de integración de Elías (Borrar más tarde)
-PLAN_INTEGRACION.md
