@@ -7,7 +7,7 @@ public class Lava : MonoBehaviour
     {
         if (collision.gameObject.name == "circle" || collision.CompareTag("Player"))
         {
-            FindObjectOfType<GameManagerLaberinto>().HasTocadoLava();
+            FindFirstObjectByType<GameManagerLaberinto>().HasTocadoLava();
         }
     }
 }

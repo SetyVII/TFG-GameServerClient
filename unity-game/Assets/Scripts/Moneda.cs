@@ -6,7 +6,7 @@ public class Moneda : MonoBehaviour
     {
         if (collision.CompareTag("Player"))
         {
-            FindObjectOfType<GameManagerLaberinto>().SumarMoneda();
+            FindFirstObjectByType<GameManagerLaberinto>().SumarMoneda();
             Destroy(gameObject); // La moneda desaparece
         }
     }

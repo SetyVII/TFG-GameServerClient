@@ -6,7 +6,7 @@ public class MetaLaberinto : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            FindObjectOfType<GameManagerLaberinto>().HasGanado();
+            FindFirstObjectByType<GameManagerLaberinto>().HasGanado();
         }
     }
 }

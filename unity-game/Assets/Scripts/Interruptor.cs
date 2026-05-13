@@ -17,12 +17,12 @@ public class Interruptor : MonoBehaviour
     }
 
 
-    // SUSTITUYE TUS MÉTODOS DE TRIGGER POR ESTOS:
+    // SUSTITUYE TUS Mï¿½TODOS DE TRIGGER POR ESTOS:
 
     private void OnTriggerStay2D(Collider2D collision)
     {
-        // Esto enviará un mensaje CUALQUIER COSA que entre, sea la bola o no
-        UnityEngine.Debug.Log("¡ALGO ESTÁ TOCANDO EL SENSOR DE: " + gameObject.name + "!");
+        // Esto enviarï¿½ un mensaje CUALQUIER COSA que entre, sea la bola o no
+        UnityEngine.Debug.Log("ï¿½ALGO ESTï¿½ TOCANDO EL SENSOR DE: " + gameObject.name + "!");
         bolaEncima = true;
     }
 
@@ -33,7 +33,7 @@ public class Interruptor : MonoBehaviour
 
     public void IntentarActivar()
     {
-        // Esto te dirá por qué no se activa
+        // Esto te dirï¿½ por quï¿½ no se activa
         UnityEngine.Debug.Log(gameObject.name + " -> bolaEncima: " + bolaEncima + " | yaActivado: " + yaActivado);
 
         if (bolaEncima && !yaActivado)
@@ -45,11 +45,11 @@ public class Interruptor : MonoBehaviour
     {
         yaActivado = true;
 
-        GameManagerLaberinto gm = FindObjectOfType<GameManagerLaberinto>();
+        GameManagerLaberinto gm = FindFirstObjectByType<GameManagerLaberinto>();
         if (gm != null)
         {
             // En lugar de enviar transform.position (el centro), 
-            // enviamos la posición + un poquito hacia arriba (eje Y)
+            // enviamos la posiciï¿½n + un poquito hacia arriba (eje Y)
             Vector3 posicionSegura = transform.position + new Vector3(0, 1.0f, 0);
             gm.ActualizarCheckpoint(posicionSegura);
         }

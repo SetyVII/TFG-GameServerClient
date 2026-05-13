@@ -7,7 +7,7 @@ public class BolaDeteccion : MonoBehaviour
 
     void Start()
     {
-        gm = FindObjectOfType<GameManagerLaberinto>();
+        gm = FindFirstObjectByType<GameManagerLaberinto>();
         miCollider = GetComponent<CircleCollider2D>();
     }
 

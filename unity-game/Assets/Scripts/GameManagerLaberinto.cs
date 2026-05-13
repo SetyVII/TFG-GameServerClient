@@ -8,14 +8,10 @@ using TMPro;
 
 public class GameManagerLaberinto : MonoBehaviour
 {
-    [Header("Paneles de Navegaci�n")]
-    public GameObject panelMenu;
-    public GameObject panelInstrucciones;
-    public GameObject panelEleccionMando;
-    public GameObject panelIP;
-    public GameObject panelVictoria;
-    public GameObject panelDerrota; // NUEVO: Panel para cuando pierdes
+    [Header("Paneles del Nivel")]
     public GameObject panelJuego;
+    public GameObject panelVictoria;
+    public GameObject panelDerrota;
 
     [Header("Referencias de Interfaz (HUD)")]
     public Image[] imagenesVidas = new Image[3]; // 3 corazones en el HUD
@@ -30,10 +26,15 @@ public class GameManagerLaberinto : MonoBehaviour
 
     [Header("Referencias de Juego")]
     public Rigidbody2D rbBola;
+
+    [Header("Referencias IP (para SocketServer)")]
     public TextMeshProUGUI textDisplayIP;
     public TextMeshProUGUI textoEstadoConexion;
 
-    [Header("Configuraci�n de Control")]
+    [Header("Configuración de Escenas")]
+    public string nombreEscenaMenu = "PanelGameTiltMaze";
+
+    [Header("Configuración de Control")]
     public float fuerzaMando = 4.5f; // Fuerza para AddForce (default = Medio)
     public float fuerzaTeclado = 25f;
     public float deadzoneMovil = 0.25f;
@@ -42,7 +43,7 @@ public class GameManagerLaberinto : MonoBehaviour
     public float tiempoSalto = 0.6f;
     public float cooldownSalto = 1.0f;
 
-    [Header("Configuraci�n de Partida")]
+    [Header("Configuración de Partida")]
     public int vidasTotales = 3;
     private int vidasActuales;
     private int monedasRecogidas = 0;
@@ -84,7 +85,109 @@ public class GameManagerLaberinto : MonoBehaviour
         }
 
         rbBola.simulated = false;
-        MostrarMenuPrincipal();
+        
+        // Recuperar configuración de móvil desde el menú
+        usaMovil = PlayerPrefs.GetInt("UsarMovil", 0) == 1;
+        
+        // Conectar con PersistentNetworkManager si existe
+        if (usaMovil && PersistentNetworkManager.Instance != null)
+        {
+            UnityEngine.Debug.Log("[GameManager] Conectado a PersistentNetworkManager");
+            PersistentNetworkManager.Instance.onDataReceived = ProcesarDatosMovil;
+            
+            if (textoEstadoConexion != null)
+                textoEstadoConexion.text = "Controlador conectado";
+        }
+        
+        EmpezarJuego();
+    }
+    
+    private void ProcesarDatosMovil(string line)
+    {
+        UnityEngine.Debug.Log("[GameManager] Datos recibidos: " + line);
+        
+        if (line.StartsWith("CONFIG,"))
+        {
+            try
+            {
+                string[] configData = line.Split(',');
+                if (configData.Length >= 3)
+                {
+                    string sensitivity = configData[1];
+                    int force = int.Parse(configData[2]);
+                    
+                    switch (sensitivity.ToLower())
+                    {
+                        case "low":
+                            fuerzaMando = 0.5f;
+                            velocidadMaximaMovil = 3f;
+                            break;
+                        case "medium":
+                            fuerzaMando = 5.0f;
+                            velocidadMaximaMovil = 10f;
+                            break;
+                        case "high":
+                            fuerzaMando = 20.0f;
+                            velocidadMaximaMovil = 25f;
+                            break;
+                        case "custom":
+                            float fuerzaCustom = Mathf.Clamp(force / 10f, 0.5f, 25f);
+                            fuerzaMando = fuerzaCustom;
+                            velocidadMaximaMovil = fuerzaCustom * 1.5f;
+                            break;
+                        default:
+                            fuerzaMando = 5.0f;
+                            velocidadMaximaMovil = 10f;
+                            break;
+                    }
+                    
+                    if (textoEstadoConexion != null)
+                        textoEstadoConexion.text = "Sensibilidad: " + sensitivity.ToUpper();
+                }
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError("[GameManager] Error config: " + ex.Message);
+            }
+            return;
+        }
+        
+        // Procesar mensajes de datos (CSV)
+        string[] data = line.Split(',');
+        if (data.Length >= 4)
+        {
+            try
+            {
+                float alpha = float.Parse(data[0]);
+                float beta = float.Parse(data[1]);
+                float gamma = float.Parse(data[2]);
+                string accion = data[3].Trim().ToLower();
+                
+                if (accion != "register")
+                {
+                    sensor_Alpha = alpha;
+                    sensor_Beta = beta;
+                    sensor_Gamma = gamma;
+                }
+                
+                if (accion == "register" && !juegoIniciado)
+                {
+                    // Juego ya iniciado, ignorar
+                }
+                else if (accion == "cambiar")
+                {
+                    AccionBotonA();
+                }
+                else if (accion == "validar")
+                {
+                    AccionBotonB();
+                }
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogWarning("[GameManager] Error parseando: " + e.Message);
+            }
+        }
     }
 
     // --- SISTEMA DE PROGRESO ---
@@ -165,13 +268,6 @@ public class GameManagerLaberinto : MonoBehaviour
 
     // --- NAVEGACI�N ---
 
-    public void MostrarMenuPrincipal() { DesactivarTodo(); panelMenu.SetActive(true); }
-    public void AbrirInstrucciones() { panelInstrucciones.SetActive(true); }
-    public void CerrarInstrucciones() { panelInstrucciones.SetActive(false); }
-    public void IrAEleccionMando() { DesactivarTodo(); panelEleccionMando.SetActive(true); }
-    public void ElegirTeclado() { usaMovil = false; EmpezarJuego(); }
-    public void ElegirMovil() { usaMovil = true; DesactivarTodo(); panelIP.SetActive(true); }
-
     public void EmpezarJuego()
     {
         DesactivarTodo();
@@ -187,13 +283,9 @@ public class GameManagerLaberinto : MonoBehaviour
 
     private void DesactivarTodo()
     {
-        panelMenu.SetActive(false);
-        panelInstrucciones.SetActive(false);
-        panelEleccionMando.SetActive(false);
-        panelIP.SetActive(false);
-        panelVictoria.SetActive(false);
+        if (panelVictoria != null) panelVictoria.SetActive(false);
         if (panelDerrota != null) panelDerrota.SetActive(false);
-        panelJuego.SetActive(false);
+        if (panelJuego != null) panelJuego.SetActive(false);
     }
 
     // --- CONTROL ---
@@ -306,7 +398,7 @@ public class GameManagerLaberinto : MonoBehaviour
         foreach (Interruptor inter in todos) inter.IntentarActivar();
     }
 
-    public void VolverAlMenuPrincipal() { SceneManager.LoadScene(SceneManager.GetActiveScene().name); }
+    public void VolverAlMenuPrincipal() { SceneManager.LoadScene(nombreEscenaMenu); }
 
     public void SalirDelJuego()
     {

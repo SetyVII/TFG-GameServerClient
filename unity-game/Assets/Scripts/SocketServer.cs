@@ -21,12 +21,113 @@ public class SocketServer : MonoBehaviour
         gameManager = GetComponent<GameManagerLaberinto>();
         dispatcher = UnityMainThreadDispatcher.Instance();
 
+        // Verificar si PersistentNetworkManager ya existe
+        if (PersistentNetworkManager.Instance != null)
+        {
+            UnityEngine.Debug.Log("[SocketServer] PersistentNetworkManager detectado, usando conexion existente");
+            // Suscribirse a los datos del persistente
+            PersistentNetworkManager.Instance.onDataReceived = ProcesarDatosPersistentes;
+            return;
+        }
+
         if (gameManager.textDisplayIP != null)
             gameManager.textDisplayIP.text = "IP: " + GetLocalIPAddress();
         if (gameManager.textoEstadoConexion != null)
             gameManager.textoEstadoConexion.text = "Esperando controlador...";
 
         StartServer();
+    }
+    
+    private void ProcesarDatosPersistentes(string line)
+    {
+        UnityEngine.Debug.Log("[SocketServer] Datos del persistente: " + line);
+        
+        if (line.StartsWith("CONFIG,"))
+        {
+            try
+            {
+                string[] configData = line.Split(',');
+                if (configData.Length >= 3)
+                {
+                    string sensitivity = configData[1];
+                    int force = int.Parse(configData[2]);
+                    
+                    dispatcher.Enqueue(() => {
+                        switch (sensitivity.ToLower())
+                        {
+                            case "low":
+                                gameManager.fuerzaMando = 0.5f;
+                                gameManager.velocidadMaximaMovil = 3f;
+                                break;
+                            case "medium":
+                                gameManager.fuerzaMando = 5.0f;
+                                gameManager.velocidadMaximaMovil = 10f;
+                                break;
+                            case "high":
+                                gameManager.fuerzaMando = 20.0f;
+                                gameManager.velocidadMaximaMovil = 25f;
+                                break;
+                            case "custom":
+                                float fuerzaCustom = Mathf.Clamp(force / 10f, 0.5f, 25f);
+                                gameManager.fuerzaMando = fuerzaCustom;
+                                gameManager.velocidadMaximaMovil = fuerzaCustom * 1.5f;
+                                break;
+                            default:
+                                gameManager.fuerzaMando = 5.0f;
+                                gameManager.velocidadMaximaMovil = 10f;
+                                break;
+                        }
+                        
+                        if (gameManager.textoEstadoConexion != null)
+                            gameManager.textoEstadoConexion.text = "Sensibilidad: " + sensitivity.ToUpper();
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError("[SocketServer] Error config persistente: " + ex.Message);
+            }
+            return;
+        }
+        
+        // Procesar mensajes de datos (CSV)
+        string[] data = line.Split(',');
+        if (data.Length >= 4)
+        {
+            try
+            {
+                float alpha = float.Parse(data[0]);
+                float beta = float.Parse(data[1]);
+                float gamma = float.Parse(data[2]);
+                string accion = data[3].Trim().ToLower();
+                
+                if (accion != "register")
+                {
+                    gameManager.sensor_Alpha = alpha;
+                    gameManager.sensor_Beta = beta;
+                    gameManager.sensor_Gamma = gamma;
+                }
+                
+                dispatcher.Enqueue(() => {
+                    if (accion == "register" && !gameManager.JuegoIniciado)
+                    {
+                        gameManager.EmpezarJuego();
+                    }
+                    else if (accion == "cambiar")
+                    {
+                        gameManager.AccionBotonA();
+                    }
+                    else if (accion == "validar")
+                    {
+                        gameManager.AccionBotonB();
+                    }
+                });
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogWarning("[SocketServer] Error parseando persistente: " + e.Message);
+            }
+        }
     }
 
     private void StartServer()
