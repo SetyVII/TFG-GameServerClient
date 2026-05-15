@@ -22,6 +22,33 @@
 - Puerto 8443 libre (HTTPS)
 - Puerto 5000 libre (TCP Unity)
 
+## Scripts de Inicio HTTPS
+
+Los scripts `run-https.ps1` (Windows) y `run-https.sh` (Linux/macOS) automatizan el inicio del servidor:
+
+### Funcionalidades
+1. **Detección automática de JDK:** Escanea múltiples rutas comunes (Oracle, Temurin, Corretto, Microsoft, IntelliJ `.jdks`, `/usr/lib/jvm`)
+2. **Generación de certificado:** Si `local-dev.p12` no existe, crea certificado autofirmado con:
+   - IP local real como CN y SAN
+   - Incluye `localhost` y `127.0.0.1`
+   - Password: `changeit`
+3. **Inicio del servidor:** Ejecuta Maven con perfil `https`
+
+### Uso
+```powershell
+# Windows
+.\scripts\run-https.ps1
+
+# Linux/macOS
+./scripts/run-https.sh
+```
+
+### Parámetros
+```powershell
+# Con JAVA_HOME explícito
+.\scripts\run-https.ps1 -JavaHome "C:\Users\madrid\.jdks\corretto-21.0.11"
+```
+
 ## Configuración del Servidor Java
 
 ### 1. Instalar JDK
@@ -115,6 +142,55 @@ Ejemplo: https://10.20.30.25:8443/mobile.html
 - O presionar "Voltear" en la barra superior
 - El juego inicia automáticamente al detectar apaisado
 
+### 4. Configuración de Apariencia (settings.html)
+
+#### Modo Oscuro/Claro
+- Toggle switch en `settings.html`
+- Aplica atributo `data-theme="dark/light"` a la página
+- Persiste en `localStorage`
+
+#### Tamaño de Fuente
+- Slider de 12px a 24px (default 16px)
+- Afecta a toda la interfaz del mando
+
+### 5. Configuración del Micrófono (Soplado)
+
+En `mobile.html`, panel del micrófono:
+- **Sensibilidad (Umbral):** 5-50 (default 10 → 0.10 RMS). Valores más bajos detectan soplidos más suaves
+- **Cooldown:** 200-2000ms (default 800ms). Tiempo mínimo entre detecciones
+- **Escala Visual:** 1-10 (default 3 → 3.3x). Factor de escala de la barra de volumen
+
+**Configuración recomendada del micrófono:**
+```javascript
+echoCancellation: false
+noiseSuppression: false
+autoGainControl: false
+```
+
+### 6. Configuración de Vibración
+
+El sistema detecta automáticamente la plataforma y usa el método disponible:
+1. `navigator.vibrate(pattern)` (estándar)
+2. `navigator.haptic` (iOS/Android moderno)
+
+Patrones disponibles:
+- **Pulso corto:** 200ms
+- **Patrón doble:** [100, 50, 100]
+- **SOS:** Patrón completo de puntos y rayas
+- **Continuo:** 5000ms
+
+### 7. Configuración de Calibración (Unity)
+
+En `GameManagerLaberinto.cs`:
+```csharp
+private const int CALIBRATION_NEEDED = 30; // Frames de calibración
+```
+
+Durante la calibración:
+- La bola no responde a movimientos
+- Se promedia el valor de `gamma` para establecer `gammaOffset`
+- Duración: ~0.5 segundos (30 frames a 60 FPS)
+
 ## Niveles de Sensibilidad
 
 ### Descripción de Niveles
@@ -147,6 +223,19 @@ Ejemplo: https://10.20.30.25:8443/mobile.html
 - Custom = 25 → Fuerza = 2.5, Vel.Max = 3.75
 
 ## Solución de Problemas
+
+### Error: "Unity: no conectado"
+**Causas posibles:**
+- Unity no está en modo Play
+- Java no se ha conectado aún (esperar 3 segundos)
+- Firewall bloqueando puerto 5000
+
+**Solución:**
+```
+1. Verificar que Unity está en Play
+2. Reiniciar servidor Java
+3. Comprobar que el puerto 5000 está libre
+```
 
 ### Error: "Unity: no conectado"
 **Causas posibles:**

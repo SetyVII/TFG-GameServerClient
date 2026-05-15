@@ -44,6 +44,31 @@ TFG-GameServerClient/
 └── README.md
 ```
 
+## Aplicaciones Web Disponibles
+
+El servidor sirve múltiples aplicaciones web además del controlador principal:
+
+| Aplicación | Descripción | Rol WebSocket |
+|-----------|-------------|---------------|
+| `mobile.html` | Controlador principal con sensores, botones, micrófono y vibración | `mobile` |
+| `settings.html` | Configuración de sensibilidad, modo oscuro y tamaño de texto | - |
+| `viewer.html` | Visualizador de pelota en PC (recibe datos de inclinación) | `viewer` |
+| `mapper.html` | Mapeo de inclinación a teclado para juegos externos | `mapper` |
+| `hole.html` | Juego "bolita al agujero" con 3 niveles | `hole-game` |
+| `fishing.html` | Simulador de pesca 3D con Three.js | `fishing-3d` |
+| `game.html` | Shooter sci-fi "Project Reincarnation Space" | - |
+| `testvib.html` | Test de vibración del dispositivo | - |
+
+## Características del Controlador Móvil
+
+- **Sensores:** Acelerómetro, giroscopio, orientación del dispositivo
+- **Botones:** A (Saltar), B (Validar/Interactuar)
+- **Micrófono:** Detección de soplado con sensibilidad ajustable
+- **Vibración:** Haptic feedback con múltiples patrones y fallbacks
+- **Modo oscuro/claro:** Configurable desde `settings.html`
+- **Calibración automática:** 30 frames (~0.5s) de promedio al iniciar
+- **Orientación:** El juego solo inicia en landscape (apaisado)
+
 ## Flujo de comunicación
 
 1. El jugador abre `https://<ip-servidor>:8443/mobile.html` en su móvil

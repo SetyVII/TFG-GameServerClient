@@ -83,6 +83,74 @@ Verificar que todos los componentes del sistema funcionan correctamente y cumple
 
 ### 2. Control del Juego
 
+#### TC-004b: Soplado por Micrófono
+**Precondiciones:**
+- Juego activo
+- Micrófono activado en mobile.html
+
+**Pasos:**
+1. Soplar suavemente cerca del micrófono
+2. Verificar barra de volumen en mobile.html
+3. Verificar que aparece "SOPLO!" en la UI
+
+**Resultado Esperado:**
+- Barra supera el umbral configurado (default 0.10)
+- Se envía mensaje WebSocket tipo `blow` con `active: true`
+- Se activa vibración del móvil (2000ms)
+
+**Criterio de Éxito:** ✅ Detección de soplado funcional
+
+---
+
+#### TC-004c: Vibración Haptic
+**Precondiciones:**
+- mobile.html abierto
+
+**Pasos:**
+1. Presionar botón "Vib test"
+2. Verificar vibración del dispositivo
+
+**Resultado Esperado:**
+- Vibración continua de 5 segundos
+- Si no soporta `navigator.vibrate`, prueba fallback `navigator.haptic`
+
+**Criterio de Éxito:** ✅ Vibración funciona en el dispositivo
+
+---
+
+#### TC-004d: Modo Oscuro/Claro
+**Precondiciones:**
+- settings.html abierto
+
+**Pasos:**
+1. Cambiar toggle a modo oscuro
+2. Guardar configuración
+3. Volver a mobile.html
+
+**Resultado Esperado:**
+- mobile.html muestra fondo oscuro (#1a1a2e)
+- El cambio persiste al recargar la página
+
+**Criterio de Éxito:** ✅ Cambio de tema persistente
+
+---
+
+#### TC-004e: Checkpoints y Respawn
+**Precondiciones:**
+- Juego activo con control móvil
+- Bola ha pasado por un interruptor
+
+**Pasos:**
+1. Activar interruptor (botón B estando encima)
+2. Caer a la lava intencionadamente
+3. Verificar posición de respawn
+
+**Resultado Esperado:**
+- Bola reaparece cerca del último interruptor activado
+- Checkpoint guardado en posición segura (1 unidad arriba del interruptor)
+
+**Criterio de Éxito:** ✅ Sistema de checkpoints funcional
+
 #### TC-004: Movimiento Básico
 **Precondiciones:**
 - Juego iniciado (bola visible)
@@ -116,6 +184,26 @@ Verificar que todos los componentes del sistema funcionan correctamente y cumple
 ```
 
 **Criterio de Éxito:** ✅ Calibración completada en ~0.5 segundos
+
+---
+
+#### TC-005b: Checkpoints al Activar Interruptor
+**Precondiciones:**
+- Nivel con interruptor y puerta
+
+**Pasos:**
+1. Mover bola sobre el interruptor
+2. Presionar botón B
+3. Verificar que puerta asociada desaparece
+4. Caer a la lava
+
+**Resultado Esperado:**
+- Interruptor cambia de color (a verde)
+- Puerta se desactiva
+- Checkpoint actualizado
+- Al morir, respawn cerca del interruptor
+
+**Criterio de Éxito:** ✅ Checkpoints y mecanismos funcionan
 
 ---
 

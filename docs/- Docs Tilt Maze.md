@@ -132,6 +132,39 @@ El proyecto se organiza en 3 escenas principales:
 2. **MenuLevelsTiltMaze** - Selector de niveles
 3. **Level8TiltMaze** - Nivel de juego
 
+### 4.2 Scripts de Mecánicas de Nivel
+
+#### Interruptor.cs
+Mecanismo de palanca activado manualmente:
+- Requiere que el jugador pulse botón B (`AccionBotonB`) estando sobre el interruptor
+- Desactiva la `puertaAsociada` al activarse
+- Guarda checkpoint en posición segura (1 unidad arriba del interruptor)
+- Cambia sprite a color verde al activarse
+- Evita activación múltiple con flag `yaActivado`
+
+#### MetaLaberinto.cs
+Zona de victoria:
+- Detecta tag "Player" en `OnTriggerEnter2D`
+- Llama a `GameManagerLaberinto.HasGanado()`
+
+#### Moneda.cs
+Objeto coleccionable:
+- Detecta tag "Player" en `OnTriggerEnter2D`
+- Llama a `GameManagerLaberinto.SumarMoneda()`
+- Se autodestruye (`Destroy(gameObject)`) al recogerse
+
+#### Lava.cs
+Zona de daño:
+- Usa `OnTriggerStay2D` para detectar incluso si la bola está quieta
+- Detecta nombre "circle" o tag "Player"
+- Llama a `GameManagerLaberinto.HasTocadoLava()`
+
+#### BolaDeteccion.cs
+Script adicional en la bola:
+- Capa extra de detección de triggers
+- Respeta invulnerabilidad por salto (`!gm.estaSaltando`)
+- Detecta tag "Trampa" para lava y tag "Meta" para victoria
+
 ### 4.2 Separación de Responsabilidades
 
 #### Antes (Monolítico):
@@ -178,7 +211,56 @@ public class LevelSelector : MonoBehaviour
 }
 ```
 
-### 4.4 Modificaciones a GameManagerLaberinto
+### 4.4 Sistema de Salto
+
+#### Implementación
+En `GameManagerLaberinto.cs`:
+- `fuerzaSalto = 12f`: Fuerza del impulso vertical
+- `tiempoSalto = 0.6f`: Duración de la animación
+- `cooldownSalto = 1.0f`: Tiempo de espera entre saltos
+
+#### Animación
+Corrutina `RutinaSaltoYCooldown()`:
+1. Aplica velocidad en Y (`rbBola.velocity = new Vector2(v.x, fuerzaSalto)`)
+2. Escala la bola (efecto de estiramiento):
+   - Crece a 1.3x en Y, 0.7x en X
+   - Vuelve a escala original
+3. Espera `cooldownSalto` segundos
+
+#### Invulnerabilidad
+- Flag `estaSaltando = true` durante el salto
+- `BolaDeteccion.cs` y lógica de lava respetan este flag
+- Evita daño de lava mientras la bola está en el aire
+
+### 4.5 Sistema de Checkpoints
+
+#### Implementación
+- `ActualizarCheckpoint(Vector3 posicion)`: Guarda nueva posición de respawn
+- Al activar un `Interruptor`, el checkpoint se actualiza a 1 unidad arriba del interruptor
+- `HasTocadoLava()`: Si quedan vidas, respawn en último checkpoint; si no, derrota
+
+### 4.6 Calibración Automática
+
+#### Proceso
+En `FixedUpdate()` de `GameManagerLaberinto`:
+1. Fase de calibración durante 30 frames (~0.5s)
+2. Suma valores de `sensor_Gamma` en `calibrationSum`
+3. Calcula `gammaOffset = calibrationSum / CALIBRATION_NEEDED`
+4. Una vez calibrado, aplica `sensor_Gamma - gammaOffset` para movimiento
+
+**Variables:**
+- `CALIBRATION_NEEDED = 30`
+- `calibrationFrames`: contador de frames
+- `gammaOffset`: valor base del sensor
+
+### 4.7 UnityMainThreadDispatcher
+
+Patrón esencial para seguridad de hilos:
+- **Cola thread-safe:** `Queue<Action>` con bloqueo `lock`
+- **Procesamiento:** En cada `Update()` ejecuta todas las acciones pendientes
+- **Uso:** Todos los scripts de red (`SocketServer`, `PersistentNetworkManager`) encolan callbacks para tocar UI y GameObjects
+
+### 4.8 Modificaciones a GameManagerLaberinto
 
 Se eliminaron las funcionalidades de menú y se mantuvieron solo las del nivel:
 
@@ -195,8 +277,26 @@ Se eliminaron las funcionalidades de menú y se mantuvieron solo las del nivel:
 - `panelDerrota`
 - Sistema de vidas y monedas
 - Control de física
+- Sistema de salto con cooldown
+- Sistema de checkpoints
+- Calibración automática
 
-### 4.5 Build Settings
+### 4.5 Scripts de UI y Flujo
+
+#### MenuManager.cs
+Gestiona la navegación del menú principal y selección de control:
+- **Paneles:** Menu, Instrucciones, Opciones, IP
+- **Selección de control:**
+  - Teclado: Guarda `PlayerPrefs.SetInt("UsarMovil", 0)` y carga menú de niveles
+  - Móvil: Guarda `PlayerPrefs.SetInt("UsarMovil", 1)`, muestra IP, instancia `PersistentNetworkManager`, espera conexión Java
+- **Callback:** `OnJavaConnected()` carga `MenuLevelsTiltMaze` tras 1.5 segundos
+
+#### LevelSelector.cs
+Script simple para botones de selección de nivel:
+- `JugarNivel()`: Carga la escena indicada (`nombreEscenaNivel`)
+- `VolverAlMenu()`: Carga `PanelGameTiltMaze`
+
+### 4.6 Build Settings
 
 Orden de escenas en Build:
 1. PanelGameTiltMaze (índice 0)

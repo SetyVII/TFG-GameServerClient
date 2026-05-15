@@ -61,6 +61,11 @@ El proyecto **WiiCellGame** es un sistema de control de videojuegos por movimien
 #### 1.3 GameConfig
 - **Propósito:** Almacenar configuración global del juego
 - **Datos:** Sensibilidad, fuerza, modo oscuro, tamaño de texto
+- **Thread-safe:** Implementado con `ConcurrentHashMap` para acceso concurrente desde múltiples hilos WebSocket
+
+#### 1.4 WebSocketConfig
+- **Propósito:** Registrar el endpoint WebSocket `/ws/motion`
+- **Característica:** Permite cualquier origen con `.setAllowedOriginPatterns("*")` para conexiones desde dispositivos móviles en la red local
 
 ### 2. Cliente Móvil (HTML/JS)
 
@@ -78,8 +83,23 @@ El proyecto **WiiCellGame** es un sistema de control de videojuegos por movimien
 - **Propósito:** Configuración del control
 - **Opciones:**
   - Modo oscuro/claro
-  - Tamaño de texto
+  - Tamaño de texto (12-24px)
   - Niveles de sensibilidad (Bajo/Medio/Alto/Custom)
+- **Persistencia:** Guarda en `localStorage` como `wiiCellSettings` y `wiiCellGameConfig`
+
+#### 2.3 Otras Aplicaciones Web
+- **viewer.html:** Visualizador de pelota en Canvas que recibe datos de inclinación por WebSocket
+- **mapper.html:** Mapea inclinación del móvil a eventos de teclado (`KeyboardEvent`) con zona muerta configurable (0.05-0.70)
+- **hole.html:** Juego "bolita al agujero" con 3 niveles, física de colisiones AABB-círculo y detección de victoria por velocidad
+- **fishing.html:** Simulador de pesca 3D con Three.js, caña de pescar con yaw/pitch, boya con estados (`ready` → `casting` → `floating` → `hooked`), peces procedurales y sistema de lanzamiento con carga
+- **game.html:** Shooter sci-fi "Project Reincarnation Space" con Canvas 2D, música procedural, sistema de ritmo (BPM 120) y 3 fases de dificultad
+- **testvib.html:** Página de diagnóstico para probar APIs de vibración del dispositivo
+
+#### 2.4 Características del Mando
+- **Micrófono:** Detección de soplado mediante `AnalyserNode` (RMS) con sliders de umbral (5-50), cooldown (200-2000ms) y escala visual (1-10)
+- **Vibración:** Haptic feedback con múltiples fallbacks (`navigator.vibrate` → `navigator.haptic`), detección de plataforma (iOS/Android/Windows/Mac/Linux)
+- **Orientación:** Bloqueo de pantalla a landscape con `screen.orientation.lock()` y fullscreen
+- **D-pad Visual:** Punto rojo que se desplaza según `tiltX`/`tiltY`
 
 ### 3. Juego Unity (C#)
 
@@ -96,10 +116,47 @@ El proyecto **WiiCellGame** es un sistema de control de videojuegos por movimien
 #### 3.2 GameManagerLaberinto.cs
 - **Propósito:** Control principal del juego
 - **Características:**
-  - Calibración automática de sensores
-  - Deadzone configurable
-  - Física realista con AddForce
-  - Velocidad máxima limitada
+  - Calibración automática de sensores (30 frames ~0.5s para calcular `gammaOffset`)
+  - Deadzone configurable (`deadzoneMovil`: 0.25 por defecto)
+  - Física realista con `AddForce` y `CollisionDetectionMode2D.Continuous`
+  - Velocidad máxima limitada (`velocidadMaximaMovil`)
+  - Sistema de vidas (3 corazones visuales) y monedas
+  - Salto con cooldown (`cooldownSalto`: 1.0s) y animación de escala
+  - **Invulnerabilidad durante el salto:** `estaSaltando` evita daño de lava
+  - Sistema de checkpoints: guarda posición de respawn al activar interruptores
+  - HUD con corazones, icono de moneda y texto de estado de conexión
+
+#### 3.3 UnityMainThreadDispatcher.cs
+- **Propósito:** Patrón de despachador al hilo principal de Unity
+- **Implementación:** Cola thread-safe (`Queue<Action>`) con `lock` que se procesa en `Update()`
+- **Uso:** Todos los scripts de socket encolan acciones para manipular GameObjects y UI de forma segura
+
+#### 3.4 PersistentNetworkManager.cs
+- **Propósito:** Servidor TCP persistente que sobrevive entre escenas (`DontDestroyOnLoad`)
+- **Patrón:** Singleton - solo existe una instancia
+- **Funcionalidades:**
+  - Escucha en puerto 5000
+  - Handshake (`JAVA_HANDSHAKE` ↔ `UNITY_OK`) y heartbeat
+  - Callbacks: `onJavaConnected` y `onDataReceived`
+  - Reemplaza conexiones antiguas (un solo cliente a la vez)
+
+#### 3.5 MenuManager.cs
+- **Propósito:** Gestión de navegación del menú principal
+- **Funcionalidades:**
+  - Paneles: Menú, Instrucciones, Opciones, IP
+  - Selección de control: Teclado o Móvil (guardado en `PlayerPrefs`)
+  - Al elegir móvil: instancia `PersistentNetworkManager`, muestra IP local, espera conexión Java
+
+#### 3.6 LevelSelector.cs
+- **Propósito:** Script simple para botones de selección de nivel
+- **Método:** `JugarNivel()` carga la escena indicada
+
+#### 3.7 Scripts de Mecánicas de Nivel
+- **Interruptor.cs:** Palanca activada por botón B (`AccionBotonB`) cuando la bola está encima. Desactiva puerta asociada y actualiza checkpoint
+- **MetaLaberinto.cs:** Zona de victoria (tag "Player") que llama a `HasGanado()`
+- **Moneda.cs:** Objeto coleccionable que llama a `SumarMoneda()` y se autodestruye
+- **Lava.cs:** Zona de daño (tag "Player" o nombre "circle") que llama a `HasTocadoLava()`
+- **BolaDeteccion.cs:** Script adicional en la bola con detección de triggers. Respeta invulnerabilidad por salto
 
 ## Flujo de Conexión
 
@@ -146,9 +203,20 @@ El proyecto **WiiCellGame** es un sistema de control de videojuegos por movimien
 - **Consumo recursos:** 1 thread adicional (heartbeat daemon)
 - **Buffering:** No hay acumulación de mensajes
 
+## Notas Técnicas Importantes
+
+### Parseo JSON Manual
+`MotionSocketHandler.java` utiliza parseo manual con expresiones regulares (`Pattern`/`Matcher`) en lugar de Jackson/ObjectMapper. Esto es ligero pero puede ser frágil ante JSON complejo o con espacios irregulares.
+
+### Lombok Declarado pero No Usado
+Aunque `lombok` está declarado en `pom.xml`, ninguna clase Java del proyecto lo utiliza actualmente. Las clases usen getters/setters y constructores manuales.
+
+### Versión de Spring Boot
+El proyecto usa Spring Boot `4.0.5` según `pom.xml` (nota: verificar compatibilidad, ya que la línea estable actual es 3.x).
+
 ## Extensiones Futuras Posibles
 
 - Soporte para múltiples jugadores simultáneos
-- Modo espectador (viewer.html)
+- Modo espectador (viewer.html) - ya existe como aplicación web
 - Estadísticas de rendimiento en tiempo real
 - Configuración por QR/NFC
